@@ -127,6 +127,13 @@
   .toolbar button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
   .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
   @media (prefers-reduced-motion: reduce) { details.sec > summary::before { transition: none; } }
+
+  .tag.low { background: var(--ok-bg); color: var(--ok); }
+  .tag.high { background: var(--no-bg); color: var(--no); }
+  .tag.sens { background: var(--no); color: var(--bg); }
+  table.ft { width: 100%; font-size: 13.5px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  table.ft th, table.ft td { padding: 6px 10px; position: static; }
+  table.ft td:first-child { width: 34%; }
   .hidden { display: none !important; }
   @media print { nav.bar, .controls { display: none; } details.call > .body { display: grid; } }
 </style>
@@ -150,7 +157,7 @@
     <a href="#calls">All calls</a>
     <a href="#fields">Achievement fields</a>
     <a href="#rules">Rules and gotchas</a>
-    <a href="#writes">Writes (avoid)</a>
+    <a href="#writes">Write calls</a>
     <span class="toolbar"><button type="button" id="expandAll">Expand all</button><button type="button" id="collapseAll">Collapse all</button></span>
   </div>
 </nav>
@@ -243,10 +250,23 @@
 
 <section id="writes">
   <details class="sec" open>
-    <summary><h2>6. Write calls (not needed for reading data)</h2></summary>
+    <summary><h2>6. Write calls</h2></summary>
     <div class="secbody">
-  <p class="lede">Taken from the Terrain web client's code. None were called while writing this page. Success codes are what the client expects.</p>
-  <div class="tablewrap"><table><thead><tr><th>Call</th><th>Body</th><th>Success</th></tr></thead><tbody id="writeRows"></tbody></table></div>
+  <p class="lede">The calls that change data: patrols, duties, achievements, events and accounts. <strong>They change real people's records, many of them children's.</strong> Reading data needs none of them, except assuming a profile to read another member's logbook. Each card says how well the call is verified and how easy it is to undo.</p>
+  <div class="legend" style="margin:0 0 6px">
+    <span><span class="tag live">tested and reverted</span> called by hand on one adult record, then put back</span>
+    <span><span class="tag live">observed live</span> recorded from a leader's own session</span>
+    <span><span class="tag code">code only</span> body and success code taken from the web client's code; the response was not seen</span>
+  </div>
+  <div class="controls" id="wctl">
+    <input id="wsearch" type="search" placeholder="Filter writes, e.g. patrol, duty, award, logbook, event">
+    <button class="chip" data-wf="all" aria-pressed="true">All</button>
+    <button class="chip" data-wf="verified" aria-pressed="false">Verified (tested or observed)</button>
+    <button class="chip" data-wf="code" aria-pressed="false">Code only</button>
+    <span class="count" id="wcount"></span>
+  </div>
+  <div id="wareaChips" class="controls" style="margin-top:-4px"></div>
+  <div id="writeList"></div>
     </div>
   </details>
 </section>
@@ -455,34 +475,211 @@ const RULES = [
   { h:'Errors and shapes to expect', p:'Bad parameters give readable 400s. Missing routes give opaque failures in the browser.', l:['Bad <code>type</code>: 400 <code>{ errors: { type: […] } }</code>', 'Missing <code>end_datetime</code>: 400 <code>{ errors: ["end_datetime required"] }</code>', 'Some responses are bare arrays: <code>/members/{id}/groups</code>, <code>/units/{id}/metrics</code>, additional-award specs', 'A missing template: 404, non-JSON body'] },
   { h:'Dates and sizes', p:'Dates are mostly <code>yyyy-mm-dd</code>; timestamps are ISO with offsets. Responses are big.', l:['<code>status_updated</code>: <code>2026-11-12T09:24:06.001357+00:00</code>', 'Finalised submissions: 906 KB. OAS unfiltered: 1.9 MB', 'Event CSV uses <code>dd/mm/yyyy</code> and 12-hour times'] },
 ];
-const WRITES = [
-  ['PATCH events /events/{id} (update, conclude)', 'event body', '204'],
-  ['POST events /units|groups|patrols/{id}/events, /events (create)', 'event body', ''],
-  ['DELETE events /events/{id}, /proposals/{id}', 'none', ''],
-  ['POST events /units/{id}/proposals', 'proposal', '201'],
-  ['PUT events /members/{id}/calendars', 'calendars object', '200'],
-  ['POST events /members/{id}/calendar-subscription', '{}', ''],
-  ['PUT achievements /units/{u}/achievements/manage-oas-stage', '{ items }', '200'],
-  ['PUT achievements /units/{u}/achievements/milestone-import-add-credits', '{ items }', '200'],
-  ['PUT achievements /units/{u}/achievements/milestone-import-award-stage', '{ section, stage, member_id, date_awarded }', '200'],
-  ['PUT achievements /units/{u}/bulk-award-sia', '{ plan_template, plan_version, member_ids, answers, uploads }', '200'],
-  ['PUT achievements /units/{u}/members/{m}/import-achievements/introduction', '{ achievement_type, date_awarded, section, action }', '200'],
-  ['POST achievements /members/{id}/create-achievement', '{ section, stage }', '200'],
-  ['PUT achievements /members/{id}/skip-achievement/{aid}, /unskip-achievement/{aid}', '{ skipped_by, skip_notes }', '200'],
-  ['POST achievements /submissions/{id}/assessments', '{ outcome, comment }', '204'],
-  ['POST achievements /members/{id}/achievements/{aid}/archive?submission_id=', 'none', '204'],
-  ['POST/PUT/DELETE achievements /members/{id}/achievements, /logbook, /import-achievements', 'record', ''],
-  ['PUT members /groups/{g}/patrols/{p}/members/{m} (add to a patrol, set patrol duty) [tested, reverted]', '{ duty: member | patrol_leader | assistant_patrol_leader }', '204 (unknown duty: 400)'],
-  ['DELETE members /groups/{g}/patrols/{p}/members/{m} (remove from a patrol) [tested, reverted]', 'none', '204 (not a member: 400)'],
-  ['PUT members /groups/{g}/units/{u}/members/{m} (set unit duty and council) [tested, reverted]', '{ duty: member | adult_leader | unit_leader, unit_council }', '204 (patrol duty here: 400)'],
-  ['DELETE members /groups/{g}/units/{u}/members/{m}, /groups/{g}/units/{u}', 'none', '204'],
-  ['POST members /groups/{g}/units', '{ name, section }', '200'],
-  ['POST members /groups/{g}/patrols (create a patrol) [observed]', '{ name, unit_id }', '200 { id, unit_id, name }'],
-  ['PUT members /groups/{g}/patrols/{p} (rename) [observed]', '{ name }', '200 { id, unit_id, name }'],
-  ['POST members /groups/{g}/patrols/{p} (<strong>delete</strong> a patrol: a POST with no body) [observed]', 'none', '204'],
-  ['PATCH members /users/{username}', '{ email }', ''],
-  ['POST members /support-leader-access', '{ member_id, group_id, access_level, action, request_note }', ''],
-  ['POST members /members/{id}/reset', 'none', '200, <strong>body contains a new password</strong>'],
+const WAREAS = [
+  { id:'units',     label:'Units and patrols',     blurb:'Create, rename and delete units and patrols.' },
+  { id:'members',   label:'Members and duties',    blurb:'Who is in which unit or patrol, and what role they hold there.' },
+  { id:'drafts',    label:'Drafts and submitting', blurb:'A member writing, saving and submitting their own achievement.' },
+  { id:'approvals', label:'Approvals',             blurb:'Approving, sending back and archiving submissions.' },
+  { id:'leader',    label:'Leader tools',          blurb:'Awarding, importing, skipping and bulk edits made by a leader.' },
+  { id:'logbook',   label:'Logbook',               blurb:'A member\'s own adventure log.' },
+  { id:'events',    label:'Events and calendars',  blurb:'Programming: events, proposals and calendar settings.' },
+  { id:'account',   label:'Account and access',    blurb:'Assuming a profile, email, access requests and password resets.' },
+];
+const WSTATUS = { tested:'tested and reverted', observed:'observed live', code:'code only' };
+const WRISK = { low:'easy to undo', high:'hard to undo', sensitive:'sensitive' };
+
+// status: tested = called by hand and put back; observed = recorded from a leader's own session; code = read from the web client's code only (response unseen)
+const WRITE_CALLS = [
+  /* ---------------- Units and patrols ---------------- */
+  { area:'units', m:'POST', host:'members', path:'/groups/{groupId}/patrols', title:'Create a patrol', status:'observed', risk:'low',
+    why:'The "+" button on the Patrols tab. Adds an empty patrol to a unit.',
+    body:[['name','string, the patrol name'],['unit_id','string, the unit the patrol belongs to']],
+    resp:'<strong>200</strong> with the new patrol: <code>{ id, unit_id, name }</code>.',
+    effects:'The patrol appears in the group and unit patrol lists straight away. It has no members. A patrol can be deleted again (see below).',
+    reads:'<code>GET /groups/{groupId}/patrols</code>, <code>GET /units/{unitId}/patrols</code>',
+    who:'Group leaders post to the group route; leaders without group access use <code>/units/{unitId}/patrols</code> with the same body (from the client code).' },
+  { area:'units', m:'PUT', host:'members', path:'/groups/{groupId}/patrols/{patrolId}', title:'Rename a patrol', status:'observed', risk:'low',
+    why:'"Rename" on the Patrols tab.',
+    body:[['name','string, the new name']],
+    resp:'<strong>200</strong> with the patrol: <code>{ id, unit_id, name }</code>.',
+    effects:'Only the name changes. Members, duties and the patrol id are untouched.',
+    reads:'<code>GET /groups/{groupId}/patrols</code>', who:'A leader who can edit the group\'s patrols.' },
+  { area:'units', m:'POST', host:'members', path:'/groups/{groupId}/patrols/{patrolId}', title:'Delete a patrol', status:'observed', risk:'high',
+    why:'"Delete" on the Patrols tab. <strong>It is a POST with no body, not a DELETE.</strong>',
+    body:null, bodyNote:'No body and no <code>Content-Type</code>.',
+    resp:'<strong>204</strong>, empty body. The patrol was gone from the patrol list afterwards (the count returned to what it was before it was created).',
+    effects:'Removes the patrol. Only an empty test patrol was deleted when this was recorded, so what happens to a patrol that has members is not known.',
+    reads:'<code>GET /groups/{groupId}/patrols</code>, <code>GET /units/{unitId}/members</code>', who:'A leader who can edit the group\'s patrols.' },
+  { area:'units', m:'POST', host:'members', path:'/groups/{groupId}/units', title:'Create a unit', status:'code', risk:'high',
+    why:'"Create Unit" on the Units tab.',
+    body:[['name','string'],['section','string, a section value such as <code>joey</code>, <code>cub</code>, <code>scout</code>, <code>venturer</code>']],
+    resp:'<strong>200</strong> expected. The response body was not seen; the client reloads the unit list afterwards.',
+    effects:'Adds a unit to the group. Its sections, name and id appear in group-level lists.',
+    reads:'<code>GET /groups/{groupId}/units</code>', who:'Group leaders (the client puts the group id in the path).' },
+  { area:'units', m:'PUT', host:'members', path:'/groups/{groupId}/units/{unitId}', title:'Rename a unit', status:'code', risk:'low',
+    why:'"Rename" on the Units tab.', body:[['name','string, the new name']],
+    resp:'<strong>200</strong> expected; body not seen.', effects:'Only the name changes.',
+    reads:'<code>GET /groups/{groupId}/units</code>', who:'Group leaders (the client puts the group id in the path).' },
+  { area:'units', m:'DELETE', host:'members', path:'/groups/{groupId}/units/{unitId}', title:'Delete a unit', status:'code', risk:'high',
+    why:'"Delete" on the Units tab (the client asks for confirmation first).', body:null,
+    resp:'<strong>204</strong> expected.', effects:'Removes the unit. What happens to its members, patrols and achievement history was not observed. Treat as destructive.',
+    reads:'<code>GET /groups/{groupId}/units</code>', who:'Group leaders (the client puts the group id in the path).' },
+
+  /* ---------------- Members and duties ---------------- */
+  { area:'members', m:'PUT', host:'members', path:'/groups/{groupId}/patrols/{patrolId}/members/{memberId}', title:'Put a member in a patrol, or change their patrol duty', status:'tested', risk:'low',
+    why:'The Patrol menu and the Patrol Leader and Assistant Patrol Leader choices in the Duty menu on a unit\'s member list.',
+    body:[['duty','one of <code>member</code>, <code>patrol_leader</code>, <code>assistant_patrol_leader</code>']],
+    resp:'<strong>204</strong>, empty body. An unknown duty returns <strong>400</strong> <code>{ "errors": { "duty": ["unallowed value …"] } }</code> and changes nothing.',
+    effects:'Adds the member to the patrol, or changes their duty there. It does not remove them from another patrol: a member can be in two patrols of the same unit at once, so a move is this call on the new patrol followed by a <code>DELETE</code> on the old one. Patrol duty is separate from unit duty. A patrol can have several leaders and assistants (reported).',
+    reads:'<code>GET /patrols/{patrolId}/members</code>, <code>GET /units/{unitId}/members</code>, <code>GET /members/{memberId}</code>',
+    who:'Leaders who can edit the group\'s members.' },
+  { area:'members', m:'DELETE', host:'members', path:'/groups/{groupId}/patrols/{patrolId}/members/{memberId}', title:'Remove a member from a patrol', status:'tested', risk:'low',
+    why:'Choosing "None" in the Patrol menu, and the second half of a patrol move.', body:null,
+    resp:'<strong>204</strong>, empty body. Deleting when the member is not in the patrol returns <strong>400</strong> with an empty body.',
+    effects:'The member keeps their unit membership and unit duty. Their patrol duty goes with the patrol membership.',
+    reads:'<code>GET /patrols/{patrolId}/members</code>, <code>GET /units/{unitId}/members</code>', who:'Leaders who can edit the group\'s members.' },
+  { area:'members', m:'PUT', host:'members', path:'/groups/{groupId}/units/{unitId}/members/{memberId}', title:'Put a member in a unit, or change their unit duty and council', status:'tested', risk:'low',
+    why:'The Duty menu (Scout, Adult Leader, Unit Leader), the Unit Council checkbox, and "Add Unit member".',
+    body:[['duty','one of <code>member</code>, <code>adult_leader</code>, <code>unit_leader</code>. Patrol duties are rejected with a 400.'],['unit_council','boolean. Every call sends it together with <code>duty</code>, set to the member\'s current value unless the council box is what changed.']],
+    resp:'<strong>204</strong>, empty body. A wrong duty returns <strong>400</strong> <code>unallowed value …</code>.',
+    effects:'Sets the unit duty and whether the member is on the unit council. Turning council on can change what the person is allowed to do, so treat it as a permissions change. Adding someone to a unit sends <code>{ duty: "member", unit_council: false }</code>.',
+    reads:'<code>GET /units/{unitId}/members</code>, <code>GET /members/{memberId}</code>, <code>GET /profiles</code> (for your own record)',
+    who:'Leaders who can edit the group\'s members.' },
+  { area:'members', m:'DELETE', host:'members', path:'/groups/{groupId}/units/{unitId}/members/{memberId}', title:'Remove a member from a unit', status:'code', risk:'high',
+    why:'Removing a member from a unit; also the second half of moving a member to another unit (the client first <code>PUT</code>s the new unit with <code>{ duty: "member", unit_council: false }</code>).', body:null,
+    resp:'<strong>204</strong> expected.', effects:'The member leaves the unit, and the client treats their patrol in that unit as cleared. Achievement records are not part of this call.',
+    reads:'<code>GET /units/{unitId}/members</code>', who:'Leaders who can edit the group\'s members.' },
+
+  /* ---------------- Drafts and submitting ---------------- */
+  { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/achievements', title:'Start a draft achievement', status:'code', risk:'low',
+    why:'A member (or a leader assisting them) starts filling in an OAS stage, special interest area, reflection or similar.',
+    body:[['achievement_type','one of the ten types, for example <code>outdoor_adventure_skill</code>'],['template, version','the template the form was built from'],['section','the member\'s section'],['answers','object of answers, see "Achievement fields"'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>']],
+    resp:'<strong>200</strong> with the new record; the client reads its <code>id</code>.',
+    effects:'Creates a draft (drafts in the data have statuses such as <code>draft_review</code>). Nothing is sent for approval yet.',
+    reads:'<code>GET /members/{memberId}/achievements?type=…</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'drafts', m:'PUT', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Save a draft achievement', status:'code', risk:'low',
+    why:'Saving progress on a draft, or sending it back to draft.',
+    body:[['achievement_type, template, version, section','as when creating it'],['answers','the full answers object'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>'],['reset_to_draft','boolean'] ],
+    resp:'<strong>200</strong> expected; body not seen.', effects:'Replaces the draft\'s answers and uploads.',
+    reads:'<code>GET /members/{memberId}/achievements/{achievementId}</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'drafts', m:'DELETE', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Delete a draft achievement', status:'code', risk:'high',
+    why:'Deleting an unsubmitted submission from the member\'s own list. The client sends an empty JSON body <code>{}</code>.',
+    body:[['(empty object)','<code>{}</code>']], resp:'<strong>204</strong> expected.', effects:'Removes the draft. The client only offers it for the signed-in user\'s own submissions.',
+    reads:'<code>GET /members/{memberId}/achievements?type=…</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}/submit', title:'Submit an achievement for approval', status:'code', risk:'high',
+    why:'The Submit button on a finished draft. When a leader has assumed the member\'s profile the client uses <code>/submit-on-behalf</code> instead.',
+    body:[['type','taken from the record\'s current submission status; submission types seen in the data are <code>review</code>, <code>approval</code> and <code>award</code>'],['unit_id','the unit it is submitted under'],['submitted_by','only on <code>/submit-on-behalf</code>: the leader\'s own member id']],
+    resp:'<strong>204</strong> expected, empty body.', effects:'Puts the record in the unit\'s approval queue. It then shows in pending submissions and the unit agenda.',
+    reads:'<code>GET /units/{unitId}/submissions?status=pending</code>, <code>GET /units/{unitId}/member-agenda</code>', who:'The member, or a leader on their behalf.' },
+  { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/uploads  ·  events /units/{id}/uploads  ·  /groups/{id}/uploads', title:'Upload a file', status:'code', risk:'low',
+    why:'Attaching files to an achievement, event or proposal. The client builds these URLs for its upload widget.',
+    body:[['(file)','sent by the upload widget; the exact encoding was not decoded']], resp:'Not seen. The record then lists the file as <code>{ id, filename, bucket, key, url, uploaded_on }</code>.',
+    effects:'Stores the file and returns its reference for use in <code>uploads</code>.', reads:'<code>GET</code> of the record that holds the upload', who:'Whoever can edit that record.' },
+
+  /* ---------------- Approvals ---------------- */
+  { area:'approvals', m:'POST', host:'achievements', path:'/submissions/{submissionId}/assessments', title:'Approve or send back a submission', status:'code', risk:'high',
+    why:'The Approve and "Request improvement" buttons on the Approvals page.',
+    body:[['outcome','<code>approved</code> or <code>rejected</code> (the page labels rejection "Improvement requested"). Finalised history also contains <code>awarded</code>, used for award submissions.'],['comment','string, optional note for the member']],
+    resp:'<strong>204</strong>, empty body.', effects:'Finalises the submission with that outcome and records who did it and when (<code>actioned_by</code>). An approval can lead to an award; a rejection returns the work to the member.',
+    reads:'<code>GET /units/{unitId}/submissions?status=pending|finalised</code>', who:'Inferred from the reads: a leader with the approval role for that unit (only the Scout unit returned submissions here; the other units returned 403).' },
+  { area:'approvals', m:'POST', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}/archive?submission_id={submissionId}', title:'Archive an item', status:'code', risk:'high',
+    why:'"Archive" on a record that reports <code>can_archive</code>.', body:null,
+    resp:'<strong>204</strong>, empty body.', effects:'Archives the record and takes the submission out of the queue.',
+    reads:'<code>GET /units/{unitId}/submissions?status=pending</code>', who:'Inferred as above: a leader with the approval role.' },
+
+  /* ---------------- Leader tools ---------------- */
+  { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/achievements/milestone-import-award-stage', title:'Award a milestone stage with a date', status:'code', risk:'high',
+    why:'The "award stage" dialog on the milestone page.',
+    body:[['section','string'],['stage','number, 1 to 3'],['member_id','string'],['date_awarded','<code>yyyy-mm-dd</code>']],
+    resp:'<strong>200</strong> expected.', effects:'Records an imported award for that stage. The record then carries the date as <code>imported.date_awarded</code> or <code>date_awarded</code>.',
+    reads:'<code>GET /units/{unitId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/achievements/milestone-import-add-credits', title:'Add imported milestone credits', status:'code', risk:'high',
+    why:'The "import credits" dialog on the milestone page.', body:[['items','list built by the dialog (participate, assist and lead credits per challenge area); the item fields were not decoded']],
+    resp:'<strong>200</strong> expected.', effects:'Adds credits that show under <code>imported.event_count</code> on the milestone record.',
+    reads:'<code>GET /units/{unitId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'POST', host:'achievements', path:'/members/{memberId}/create-achievement', title:'Create a milestone record', status:'code', risk:'high',
+    why:'Creating a milestone stage for a member who does not have one.', body:[['section','string'],['stage','number']],
+    resp:'<strong>200</strong> expected.', effects:'Adds a milestone record for that stage.', reads:'<code>GET /members/{memberId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'PUT', host:'achievements', path:'/members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}', title:'Skip or un-skip a milestone', status:'code', risk:'low',
+    why:'Marking a milestone stage as not required, and undoing it.',
+    body:[['skip: skipped_by','the leader\'s full name'],['skip: skip_notes','string, may be empty'],['unskip','no body']],
+    resp:'<strong>200</strong> expected.', effects:'A skipped milestone has <code>status: not_required</code> and <code>answers: { skipped_on, skipped_by, skip_notes, previous_status }</code>. Un-skipping restores the previous status.',
+    reads:'<code>GET /members/{memberId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/achievements/manage-oas-stage', title:'Set or revert an OAS stage award', status:'code', risk:'high',
+    why:'Editing the award date of an OAS stage, or reverting it.',
+    body:[['items','object built by the dialog: <code>{ action: "edit" | "revert", date_awarded (edit only), member_id, oas_stage, section }</code>']],
+    resp:'<strong>200</strong> expected.', effects:'Changes the awarded date of the stage, or takes the award back.', reads:'<code>GET /units/{unitId}/achievements?type=outdoor_adventure_skill&amp;stream=…</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/bulk-award-sia', title:'Award a special interest area to several members', status:'code', risk:'high',
+    why:'The bulk SIA award dialog.',
+    body:[['plan_template, plan_version','the SIA plan template used'],['member_ids','array of member ids'],['answers','the plan and review answers combined'],['uploads','plan and review uploads combined']],
+    resp:'<strong>200</strong> expected; the client shows a result summary.', effects:'Creates awarded SIA records for every listed member.',
+    reads:'<code>GET /units/{unitId}/achievements?type=special_interest_area</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/members/{memberId}/import-achievements/introduction', title:'Record an introduction badge', status:'code', risk:'high',
+    why:'Setting or editing the date for Introduction to Scouting or Introduction to Section.',
+    body:[['achievement_type','<code>intro_scouting</code> or <code>intro_section</code>'],['date_awarded','<code>yyyy-mm-dd</code>'],['section','string'],['action','string chosen in the dialog (add or edit)']],
+    resp:'<strong>200</strong> expected.', effects:'Creates or changes an imported introduction record (<code>imported.date_awarded</code>).',
+    reads:'<code>GET /units/{unitId}/achievements?type=intro_scouting|intro_section</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+  { area:'leader', m:'POST', host:'achievements', path:'/members/{memberId}/import-achievements  ·  /import-achievements/submit', title:'Baseline import for a member', status:'code', risk:'high',
+    why:'The "Baseline Achievements" import used when a leader first sets up a member\'s progress.',
+    body:[['import-achievements','<code>{ items }</code>: the baseline progress entered in the form'],['import-achievements/submit','no body']],
+    resp:'Both <strong>204</strong> expected ("Achievement saved successfully" and "Member import finalised").', effects:'Writes the member\'s baseline and then finalises it. Meant to be a once-off.',
+    reads:'<code>GET /members/{memberId}/achievements</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
+
+  /* ---------------- Logbook ---------------- */
+  { area:'logbook', m:'POST', host:'achievements', path:'/members/{memberId}/logbook', title:'Add a logbook entry', status:'code', risk:'low',
+    why:'"Add new record" on My Logbook. The path uses the signed-in user\'s id, which is the assumed member while a profile is assumed.',
+    body:[['title','string'],['start_date, end_date','<code>yyyy-mm-dd</code>'],['distance_travelled, distance_walkabout','numbers'],['categories','array of strings'],['achievement_meta','<code>{ stream, branch }</code>, sent only when the activity area is an OAS stream'],['details','<code>{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }</code>. The client deletes empty <code>activity_grade</code>, <code>activity_time_length</code> and <code>who_lead</code> first.']],
+    resp:'Success not decoded; the client then returns to the logbook list.', effects:'Adds an entry and updates the logbook totals (nights camped, distance hiked).',
+    reads:'<code>GET /members/{memberId}/logbook</code>, <code>/logbook-metrics</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'logbook', m:'PUT', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Edit a logbook entry', status:'code', risk:'low',
+    why:'"Edit" on an entry.', body:[['(the same record)','as when adding, but <strong>without</strong> the <code>id</code> field']],
+    resp:'Success not decoded.', effects:'Replaces the entry and recalculates the totals.', reads:'<code>GET /members/{memberId}/logbook/{logbookId}</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'logbook', m:'DELETE', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Delete a logbook entry', status:'code', risk:'high',
+    why:'"Delete" on an entry.', body:null, resp:'Success not decoded.', effects:'Removes the entry and lowers the totals.', reads:'<code>GET /members/{memberId}/logbook</code>', who:'The member, or a leader assuming their profile.' },
+
+  /* ---------------- Events and calendars ---------------- */
+  { area:'events', m:'POST', host:'events', path:'/units/{unitId}/events  ·  /groups/{groupId}/events  ·  /patrols/{patrolId}/events  ·  /events', title:'Create an event', status:'code', risk:'high',
+    why:'Planning an activity, or logging one that has already happened ("Event created and concluded"). The route depends on who the event is for.',
+    body:[['title, description, justification, location','strings'],['organisers','array of member ids'],['challenge_area','string'],['start_datetime, end_datetime','ISO date-times'],['iana_timezone','for example <code>Australia/Sydney</code>'],['event_type','<code>{ type, id }</code>: who it is for (group, unit, patrol or member)'],['attendance','<code>{ leader_member_ids[], assistant_member_ids[], attendee_member_ids[], participant_member_ids[] }</code>'],['schedule_items','array'],['achievement_pathway_oas_data, achievement_pathway_logbook_data','objects, optional'],['review','<code>{ general_tags[], scout_method_elements[], scout_spices_elements[], general_rating?, growth_description?, scout_method_description? }</code>'],['uploads, equipment_notes, additional_notes','files and strings'],['status','<code>planned</code> or <code>concluded</code>'],['invited_member_ids','only for patrol project events']],
+    resp:'<strong>204</strong> when creating a concluded event; the success code for a planned event was not decoded.', effects:'Adds the event to calendars. Concluded events record attendance, which appears to be where milestone credits (<code>event_log</code>) come from.',
+    reads:'<code>GET /members/{memberId}/events?start_datetime=&amp;end_datetime=</code>, <code>GET /events/{eventId}</code>', who:'Not decoded; the client offers it from the Programming page.' },
+  { area:'events', m:'PATCH', host:'events', path:'/events/{eventId}', title:'Update or conclude an event', status:'code', risk:'high',
+    why:'Editing an event, or marking it concluded after it has happened.', body:[['(the same event body)','with <code>status</code> set to <code>planned</code> or <code>concluded</code>']],
+    resp:'<strong>204</strong>, empty body.', effects:'Concluding an event records attendance against the people listed; it appears to be what produces milestone credits.',
+    reads:'<code>GET /events/{eventId}</code>', who:'Not decoded; the client offers it on an event\'s page.' },
+  { area:'events', m:'DELETE', host:'events', path:'/events/{eventId}', title:'Cancel an event', status:'code', risk:'high',
+    why:'"Cancel activity".', body:null, resp:'Success not decoded; the client then returns to Programming.', effects:'Removes the event from calendars.', reads:'<code>GET /members/{memberId}/events</code>', who:'Not decoded; the client offers it on an event\'s page.' },
+  { area:'events', m:'POST', host:'events', path:'/units/{unitId}/proposals', title:'Propose an activity', status:'code', risk:'low',
+    why:'A youth member\'s "Propose idea". The client shows "Proposal sent to Unit Council".',
+    body:[['title, description, justification, leader','strings'],['challenge_area','string'],['uploads','array']],
+    resp:'<strong>201</strong>.', effects:'Adds a proposal to the unit\'s list for Unit Council to review.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Offered to unit members; the client sends it to the signed-in user\'s unit.' },
+  { area:'events', m:'DELETE', host:'events', path:'/proposals/{proposalId}', title:'Remove a proposal', status:'code', risk:'high',
+    why:'Removing a proposal once it is dealt with.', body:null, resp:'Success not decoded; the client shows "removed successfully".', effects:'Deletes the proposal.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Not decoded; the client offers it on a proposal\'s page.' },
+  { area:'events', m:'PUT', host:'events', path:'/members/{memberId}/calendars', title:'Choose which calendars you see', status:'code', risk:'low',
+    why:'The calendar list toggles on the Programming page.', body:[['(the calendars object)','<code>{ member_id, own_calendars[], other_calendars[] }</code> as read, with the <code>selected</code> flags changed']],
+    resp:'<strong>200</strong>.', effects:'Only changes what the signed-in user sees; it does not change events.', reads:'<code>GET /members/{memberId}/calendars</code>', who:'The signed-in member.' },
+  { area:'events', m:'POST', host:'events', path:'/members/{memberId}/calendar-subscription', title:'Create iCal feed links', status:'code', risk:'sensitive',
+    why:'"Subscribe" in the calendar dialog.', body:[['(empty object)','<code>{}</code>']], resp:'Not seen. A later <code>GET</code> returns the feed ids and URLs.',
+    effects:'Creates private feed URLs. Anyone with a URL can read the calendar, so treat it as a secret.', reads:'<code>GET /members/{memberId}/calendar-subscription</code>', who:'The signed-in member.' },
+
+  /* ---------------- Account and access ---------------- */
+  { area:'account', m:'POST', host:'members', path:'/members/{memberId}/assume-profiles  then  /revoke-assumed-profiles', title:'Assume a member\'s profile (and stop)', status:'observed', risk:'low',
+    why:'"Manage achievement pathways" in Group Life, and "Stop managing achievement pathways" in the account menu.', body:null,
+    resp:'<strong>204</strong>, empty body, for both. Terrain calls revoke first, then assume, then re-reads <code>/profiles</code>.',
+    effects:'Adds a temporary extra profile (30 minutes) carrying <code>datetime_expires</code> and <code>*-on-behalf</code> roles. Needed only to read another member\'s logbook, and for the member-level writes the client sends as that member.',
+    reads:'<code>GET /profiles</code>', who:'Leaders.' },
+  { area:'account', m:'PATCH', host:'members', path:'/users/{username}', title:'Set your email address', status:'code', risk:'sensitive',
+    why:'The "add your email" step shown when an account has none.', body:[['email','string']], resp:'Success not decoded; the client then returns to the home page.',
+    effects:'Changes the email on the account (used for sign-in recovery).', reads:'<code>GET</code> Cognito <code>GetUser</code>', who:'The signed-in user.' },
+  { area:'account', m:'POST', host:'members', path:'/support-leader-access', title:'Request support leader access', status:'code', risk:'sensitive',
+    why:'A support leader asking for access to another group.', body:[['member_id','the requester'],['group_id','the group being requested'],['access_level','the level chosen in the dialog'],['action','<code>REQUEST</code>'],['request_note','string, the reason']],
+    resp:'Success not decoded ("Access request sent").', effects:'Raises an access request for a group leader to approve.', reads:'<code>GET /admin/support-leader-access-records?status=PENDING|APPROVED</code>', who:'Support leaders.' },
+  { area:'account', m:'POST', host:'members', path:'/members/{memberId}/reset', title:'Reset a member\'s password', status:'code', risk:'sensitive',
+    why:'"Reset password" on a member, shown to leaders.', body:null, resp:'<strong>200</strong>. <strong>The response contains the member\'s new password.</strong>',
+    effects:'Invalidates the old password. Do not call this from tooling.', reads:'none', who:'Shown to leaders; the exact permission was not decoded.' },
+  { area:'account', m:'POST', host:'members', path:'/members/expired_password_reset', title:'Reset an expired temporary password', status:'code', risk:'sensitive',
+    why:'Part of sign-in when Cognito says a temporary password has expired.', body:[['member_number','string'],['branch','string']], resp:'200 on success; the client then retries the sign-in.',
+    effects:'Issues a fresh temporary password for that account.', reads:'none', who:'Anyone attempting to sign in (unauthenticated flow).' },
 ];
 
 /* ---------- rendering ---------- */
@@ -537,7 +734,34 @@ document.querySelectorAll('.pick[data-level]').forEach(b => b.addEventListener('
 $('#fieldRows').innerHTML = FIELDS.map(r => `<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
 $('#typeRows').innerHTML = TYPES.map(r => `<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td class="mono">${r[2]}</td><td>${r[3]}</td></tr>`).join('');
 $('#ruleCards').innerHTML = RULES.map(r => `<div class="card"><h3>${r.h}</h3><p>${r.p}</p><ul>${r.l.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('');
-$('#writeRows').innerHTML = WRITES.map(r => `<tr><td class="mono">${esc(r[0])}</td><td class="mono">${esc(r[1])}</td><td>${r[2]}</td></tr>`).join('');
+/* write calls */
+const wstate = { area: 'all', f: 'all', q: '' };
+function writeCard(c) {
+  const bodyHtml = c.body ? `<table class="ft"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${c.body.map(r => `<tr><td class="mono">${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>${c.bodyNote ? `<div style="margin-top:6px">${c.bodyNote}</div>` : ''}` : (c.bodyNote || 'No body.');
+  const dl = [['Request body', bodyHtml], ['Response', c.resp], ['What it does', c.effects], ['Re-read with', c.reads], ['Who can use it', c.who], ['Host', `<code>${esc(c.host)}</code>`]].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const stTag = c.status === 'code' ? 'code' : 'live';
+  const riskCls = { low: 'low', high: 'high', sensitive: 'sens' }[c.risk];
+  const text = (c.title + ' ' + c.path + ' ' + c.why + ' ' + c.effects + ' ' + (c.body ? c.body.map(r => r.join(' ')).join(' ') : '')).toLowerCase();
+  return `<details class="call" style="--lc:${c.status === 'code' ? 'var(--c-personal)' : 'var(--c-reference)'}"><summary><span class="m ${c.m}">${c.m}</span><span class="ttl">${c.title}</span><span><span class="tag ${stTag}">${WSTATUS[c.status]}</span> <span class="tag ${riskCls}">${WRISK[c.risk]}</span></span><span class="path"><b>${esc(c.host)}</b>${esc(c.path)}</span><span class="ret">${c.why}</span></summary><div class="body"><dl>${dl}</dl></div></details>`.replace('<details class="call"', `<details class="call" data-text="${esc(text)}"`);
+}
+function renderWrites() {
+  const out = []; let shown = 0;
+  for (const A of WAREAS) {
+    if (wstate.area !== 'all' && wstate.area !== A.id) continue;
+    const items = WRITE_CALLS.filter(c => c.area === A.id && (wstate.f === 'all' || (wstate.f === 'code' ? c.status === 'code' : c.status !== 'code')) && (!wstate.q || (c.title + ' ' + c.path + ' ' + c.why + ' ' + c.effects + ' ' + c.m + ' ' + (c.body ? c.body.map(r => r.join(' ')).join(' ') : '')).toLowerCase().includes(wstate.q)));
+    if (!items.length) continue; shown += items.length;
+    out.push(`<div class="group-head"><span class="lv lv-write">${A.label}</span><p>${A.blurb}</p></div><div class="calls">${items.map(writeCard).join('')}</div>`);
+  }
+  $('#writeList').innerHTML = out.join('') || '<p class="lede">No write calls match.</p>';
+  $('#wcount').textContent = `${shown} of ${WRITE_CALLS.length} calls`;
+  document.querySelectorAll('#wareaChips .chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.area === wstate.area)));
+  document.querySelectorAll('#wctl .chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.wf === wstate.f)));
+}
+$('#wareaChips').innerHTML = `<button class="chip" data-area="all" aria-pressed="true">All areas</button>` + WAREAS.map(a => `<button class="chip" data-area="${a.id}" aria-pressed="false">${a.label}</button>`).join('');
+$('#wareaChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { wstate.area = b.dataset.area; renderWrites(); } });
+$('#wctl').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { wstate.f = b.dataset.wf; renderWrites(); } });
+$('#wsearch').addEventListener('input', e => { wstate.q = e.target.value.trim().toLowerCase(); renderWrites(); });
+renderWrites();
 
 renderFinder(); renderCalls();
 

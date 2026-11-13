@@ -454,35 +454,488 @@ Read from the web app's bundles. **None of these write calls were made.** Succes
 - Terrain's own client never passes paging params, with one exception: `GET members /branches/{branchId}/groups?…&limit={n}` (a group search in the support-leader access flow) does take `limit`. `{branchId}` comes from the app's user store; the profiles response for this account has no branch.
 - The templates host also serves static files under `/resources/…`, linked from template `info_box.links[].path`: SIA prompter PDFs per section (`/resources/sia/{joey-scout|cub-scout|scout|venturer-scout|rover-scout}/sia_prompters.pdf`), OAS detail PDFs (`/resources/oas/{section}/oas_detail.pdf`) and Adventurous Journey PDFs. All returned 200, 0.4 to 1.6 MB.
 
-## Write calls (web app code, not called)
+## Write calls
 
-| Call | Body | Success |
-|---|---|---|
-| `PATCH events /events/{id}` (update, conclude) | event body (built by the app) | 204 |
-| `DELETE events /events/{id}`, `/proposals/{id}` | none | |
-| `POST events /units/{id}/proposals` | proposal object | 201 |
-| `POST events /{groups\|units\|patrols}/{id}/events`, `/events` | event body | |
-| `PUT events /members/{id}/calendars` | the calendars object (`own_calendars`, `other_calendars` with `selected` flags) | 200 |
-| `POST events /members/{id}/calendar-subscription` | `{}` | |
-| `PUT achievements /units/{u}/achievements/manage-oas-stage` | `{ items }` | 200 |
-| `PUT achievements /units/{u}/achievements/milestone-import-add-credits` | `{ items }` | 200 |
-| `PUT achievements /units/{u}/achievements/milestone-import-award-stage` | `{ section, stage, member_id, date_awarded }` | 200 |
-| `PUT achievements /units/{u}/bulk-award-sia` | `{ plan_template, plan_version, member_ids, answers, uploads }` | 200 |
-| `PUT achievements /units/{u}/members/{m}/import-achievements/introduction` | `{ achievement_type, date_awarded, section, action }` | 200 |
-| `POST achievements /members/{id}/create-achievement` | `{ section, stage }` | 200 |
-| `PUT achievements /members/{id}/skip-achievement/{aid}` | `{ skipped_by, skip_notes }` | 200 |
-| `PUT achievements /members/{id}/unskip-achievement/{aid}` | | |
-| `POST achievements /submissions/{id}/assessments` | `{ outcome: "approved" \| …, comment }` | 204 |
-| `POST achievements /members/{id}/achievements/{aid}/archive?submission_id=` | none | 204 |
-| `POST/PUT/DELETE achievements /members/{id}/achievements[/{aid}]`, `/logbook[/{id}]`, `/import-achievements[/submit]` | achievement or logbook record | |
-| `POST members /members/{id}/assume-profiles`, `/revoke-assumed-profiles` | none | 204 (observed) |
-| `PUT members /groups/{g}/units/{u}/members/{m}` | `{ duty, unit_council }` | 204 |
-| `DELETE members /groups/{g}/units/{u}/members/{m}`, `/groups/{g}/units/{u}` | | |
-| `POST members /groups/{g}/units`, `/groups/{g}/patrols`, `/units/{u}/patrols` | `{ name, unit_id }` for patrols | |
-| `PATCH members /users/{username}` | `{ email }` | |
-| `POST members /support-leader-access` | `{ member_id, group_id, access_level, action: "REQUEST", request_note }` | |
-| `POST members /members/{id}/reset` | none | 200, **body contains the new password** |
-| `POST members /members/expired_password_reset` | `{ member_number, branch }` | |
+What changes data. Reading data needs none of these except assuming a profile to read another member's logbook. Each call is marked **tested and reverted** (called by hand on one adult record, then put back), **observed live** (recorded from a leader's own session) or **code only** (body and success code taken from the web client's code; the response was not seen). The same catalogue, with a card per call, is on the reference page.
+
+### Units and patrols
+
+Create, rename and delete units and patrols.
+
+#### Create a patrol
+
+`POST members /groups/{groupId}/patrols` · observed live · easy to undo
+
+- **Used for:** The "+" button on the Patrols tab. Adds an empty patrol to a unit.
+- **Request body:** `name`: string, the patrol name; `unit_id`: string, the unit the patrol belongs to
+- **Response:** **200** with the new patrol: `{ id, unit_id, name }`.
+- **What it does:** The patrol appears in the group and unit patrol lists straight away. It has no members. A patrol can be deleted again (see below).
+- **Re-read with:** `GET /groups/{groupId}/patrols`, `GET /units/{unitId}/patrols`
+- **Who can use it:** Group leaders post to the group route; leaders without group access use `/units/{unitId}/patrols` with the same body (from the client code).
+
+#### Rename a patrol
+
+`PUT members /groups/{groupId}/patrols/{patrolId}` · observed live · easy to undo
+
+- **Used for:** "Rename" on the Patrols tab.
+- **Request body:** `name`: string, the new name
+- **Response:** **200** with the patrol: `{ id, unit_id, name }`.
+- **What it does:** Only the name changes. Members, duties and the patrol id are untouched.
+- **Re-read with:** `GET /groups/{groupId}/patrols`
+- **Who can use it:** A leader who can edit the group's patrols.
+
+#### Delete a patrol
+
+`POST members /groups/{groupId}/patrols/{patrolId}` · observed live · hard to undo
+
+- **Used for:** "Delete" on the Patrols tab. **It is a POST with no body, not a DELETE.**
+- **Request body:** none (No body and no `Content-Type`.)
+- **Response:** **204**, empty body. The patrol was gone from the patrol list afterwards (the count returned to what it was before it was created).
+- **What it does:** Removes the patrol. Only an empty test patrol was deleted when this was recorded, so what happens to a patrol that has members is not known.
+- **Re-read with:** `GET /groups/{groupId}/patrols`, `GET /units/{unitId}/members`
+- **Who can use it:** A leader who can edit the group's patrols.
+
+#### Create a unit
+
+`POST members /groups/{groupId}/units` · code only · hard to undo
+
+- **Used for:** "Create Unit" on the Units tab.
+- **Request body:** `name`: string; `section`: string, a section value such as `joey`, `cub`, `scout`, `venturer`
+- **Response:** **200** expected. The response body was not seen; the client reloads the unit list afterwards.
+- **What it does:** Adds a unit to the group. Its sections, name and id appear in group-level lists.
+- **Re-read with:** `GET /groups/{groupId}/units`
+- **Who can use it:** Group leaders (the client puts the group id in the path).
+
+#### Rename a unit
+
+`PUT members /groups/{groupId}/units/{unitId}` · code only · easy to undo
+
+- **Used for:** "Rename" on the Units tab.
+- **Request body:** `name`: string, the new name
+- **Response:** **200** expected; body not seen.
+- **What it does:** Only the name changes.
+- **Re-read with:** `GET /groups/{groupId}/units`
+- **Who can use it:** Group leaders (the client puts the group id in the path).
+
+#### Delete a unit
+
+`DELETE members /groups/{groupId}/units/{unitId}` · code only · hard to undo
+
+- **Used for:** "Delete" on the Units tab (the client asks for confirmation first).
+- **Request body:** none
+- **Response:** **204** expected.
+- **What it does:** Removes the unit. What happens to its members, patrols and achievement history was not observed. Treat as destructive.
+- **Re-read with:** `GET /groups/{groupId}/units`
+- **Who can use it:** Group leaders (the client puts the group id in the path).
+
+
+### Members and duties
+
+Who is in which unit or patrol, and what role they hold there.
+
+#### Put a member in a patrol, or change their patrol duty
+
+`PUT members /groups/{groupId}/patrols/{patrolId}/members/{memberId}` · tested and reverted · easy to undo
+
+- **Used for:** The Patrol menu and the Patrol Leader and Assistant Patrol Leader choices in the Duty menu on a unit's member list.
+- **Request body:** `duty`: one of `member`, `patrol_leader`, `assistant_patrol_leader`
+- **Response:** **204**, empty body. An unknown duty returns **400** `{ "errors": { "duty": ["unallowed value …"] } }` and changes nothing.
+- **What it does:** Adds the member to the patrol, or changes their duty there. It does not remove them from another patrol: a member can be in two patrols of the same unit at once, so a move is this call on the new patrol followed by a `DELETE` on the old one. Patrol duty is separate from unit duty. A patrol can have several leaders and assistants (reported).
+- **Re-read with:** `GET /patrols/{patrolId}/members`, `GET /units/{unitId}/members`, `GET /members/{memberId}`
+- **Who can use it:** Leaders who can edit the group's members.
+
+#### Remove a member from a patrol
+
+`DELETE members /groups/{groupId}/patrols/{patrolId}/members/{memberId}` · tested and reverted · easy to undo
+
+- **Used for:** Choosing "None" in the Patrol menu, and the second half of a patrol move.
+- **Request body:** none
+- **Response:** **204**, empty body. Deleting when the member is not in the patrol returns **400** with an empty body.
+- **What it does:** The member keeps their unit membership and unit duty. Their patrol duty goes with the patrol membership.
+- **Re-read with:** `GET /patrols/{patrolId}/members`, `GET /units/{unitId}/members`
+- **Who can use it:** Leaders who can edit the group's members.
+
+#### Put a member in a unit, or change their unit duty and council
+
+`PUT members /groups/{groupId}/units/{unitId}/members/{memberId}` · tested and reverted · easy to undo
+
+- **Used for:** The Duty menu (Scout, Adult Leader, Unit Leader), the Unit Council checkbox, and "Add Unit member".
+- **Request body:** `duty`: one of `member`, `adult_leader`, `unit_leader`. Patrol duties are rejected with a 400.; `unit_council`: boolean. Every call sends it together with `duty`, set to the member's current value unless the council box is what changed.
+- **Response:** **204**, empty body. A wrong duty returns **400** `unallowed value …`.
+- **What it does:** Sets the unit duty and whether the member is on the unit council. Turning council on can change what the person is allowed to do, so treat it as a permissions change. Adding someone to a unit sends `{ duty: "member", unit_council: false }`.
+- **Re-read with:** `GET /units/{unitId}/members`, `GET /members/{memberId}`, `GET /profiles` (for your own record)
+- **Who can use it:** Leaders who can edit the group's members.
+
+#### Remove a member from a unit
+
+`DELETE members /groups/{groupId}/units/{unitId}/members/{memberId}` · code only · hard to undo
+
+- **Used for:** Removing a member from a unit; also the second half of moving a member to another unit (the client first `PUT`s the new unit with `{ duty: "member", unit_council: false }`).
+- **Request body:** none
+- **Response:** **204** expected.
+- **What it does:** The member leaves the unit, and the client treats their patrol in that unit as cleared. Achievement records are not part of this call.
+- **Re-read with:** `GET /units/{unitId}/members`
+- **Who can use it:** Leaders who can edit the group's members.
+
+
+### Drafts and submitting
+
+A member writing, saving and submitting their own achievement.
+
+#### Start a draft achievement
+
+`POST achievements /members/{memberId}/achievements` · code only · easy to undo
+
+- **Used for:** A member (or a leader assisting them) starts filling in an OAS stage, special interest area, reflection or similar.
+- **Request body:** `achievement_type`: one of the ten types, for example `outdoor_adventure_skill`; `template, version`: the template the form was built from; `section`: the member's section; `answers`: object of answers, see "Achievement fields"; `uploads`: array of `{ bucket, filename, key, uploaded_on }`
+- **Response:** **200** with the new record; the client reads its `id`.
+- **What it does:** Creates a draft (drafts in the data have statuses such as `draft_review`). Nothing is sent for approval yet.
+- **Re-read with:** `GET /members/{memberId}/achievements?type=…`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+#### Save a draft achievement
+
+`PUT achievements /members/{memberId}/achievements/{achievementId}` · code only · easy to undo
+
+- **Used for:** Saving progress on a draft, or sending it back to draft.
+- **Request body:** `achievement_type, template, version, section`: as when creating it; `answers`: the full answers object; `uploads`: array of `{ bucket, filename, key, uploaded_on }`; `reset_to_draft`: boolean
+- **Response:** **200** expected; body not seen.
+- **What it does:** Replaces the draft's answers and uploads.
+- **Re-read with:** `GET /members/{memberId}/achievements/{achievementId}`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+#### Delete a draft achievement
+
+`DELETE achievements /members/{memberId}/achievements/{achievementId}` · code only · hard to undo
+
+- **Used for:** Deleting an unsubmitted submission from the member's own list. The client sends an empty JSON body `{}`.
+- **Request body:** `(empty object)`: `{}`
+- **Response:** **204** expected.
+- **What it does:** Removes the draft. The client only offers it for the signed-in user's own submissions.
+- **Re-read with:** `GET /members/{memberId}/achievements?type=…`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+#### Submit an achievement for approval
+
+`POST achievements /members/{memberId}/achievements/{achievementId}/submit` · code only · hard to undo
+
+- **Used for:** The Submit button on a finished draft. When a leader has assumed the member's profile the client uses `/submit-on-behalf` instead.
+- **Request body:** `type`: taken from the record's current submission status; submission types seen in the data are `review`, `approval` and `award`; `unit_id`: the unit it is submitted under; `submitted_by`: only on `/submit-on-behalf`: the leader's own member id
+- **Response:** **204** expected, empty body.
+- **What it does:** Puts the record in the unit's approval queue. It then shows in pending submissions and the unit agenda.
+- **Re-read with:** `GET /units/{unitId}/submissions?status=pending`, `GET /units/{unitId}/member-agenda`
+- **Who can use it:** The member, or a leader on their behalf.
+
+#### Upload a file
+
+`POST achievements /members/{memberId}/uploads  ·  events /units/{id}/uploads  ·  /groups/{id}/uploads` · code only · easy to undo
+
+- **Used for:** Attaching files to an achievement, event or proposal. The client builds these URLs for its upload widget.
+- **Request body:** `(file)`: sent by the upload widget; the exact encoding was not decoded
+- **Response:** Not seen. The record then lists the file as `{ id, filename, bucket, key, url, uploaded_on }`.
+- **What it does:** Stores the file and returns its reference for use in `uploads`.
+- **Re-read with:** `GET` of the record that holds the upload
+- **Who can use it:** Whoever can edit that record.
+
+
+### Approvals
+
+Approving, sending back and archiving submissions.
+
+#### Approve or send back a submission
+
+`POST achievements /submissions/{submissionId}/assessments` · code only · hard to undo
+
+- **Used for:** The Approve and "Request improvement" buttons on the Approvals page.
+- **Request body:** `outcome`: `approved` or `rejected` (the page labels rejection "Improvement requested"). Finalised history also contains `awarded`, used for award submissions.; `comment`: string, optional note for the member
+- **Response:** **204**, empty body.
+- **What it does:** Finalises the submission with that outcome and records who did it and when (`actioned_by`). An approval can lead to an award; a rejection returns the work to the member.
+- **Re-read with:** `GET /units/{unitId}/submissions?status=pending\|finalised`
+- **Who can use it:** Inferred from the reads: a leader with the approval role for that unit (only the Scout unit returned submissions here; the other units returned 403).
+
+#### Archive an item
+
+`POST achievements /members/{memberId}/achievements/{achievementId}/archive?submission_id={submissionId}` · code only · hard to undo
+
+- **Used for:** "Archive" on a record that reports `can_archive`.
+- **Request body:** none
+- **Response:** **204**, empty body.
+- **What it does:** Archives the record and takes the submission out of the queue.
+- **Re-read with:** `GET /units/{unitId}/submissions?status=pending`
+- **Who can use it:** Inferred as above: a leader with the approval role.
+
+
+### Leader tools
+
+Awarding, importing, skipping and bulk edits made by a leader.
+
+#### Award a milestone stage with a date
+
+`PUT achievements /units/{unitId}/achievements/milestone-import-award-stage` · code only · hard to undo
+
+- **Used for:** The "award stage" dialog on the milestone page.
+- **Request body:** `section`: string; `stage`: number, 1 to 3; `member_id`: string; `date_awarded`: `yyyy-mm-dd`
+- **Response:** **200** expected.
+- **What it does:** Records an imported award for that stage. The record then carries the date as `imported.date_awarded` or `date_awarded`.
+- **Re-read with:** `GET /units/{unitId}/achievements?type=milestone`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Add imported milestone credits
+
+`PUT achievements /units/{unitId}/achievements/milestone-import-add-credits` · code only · hard to undo
+
+- **Used for:** The "import credits" dialog on the milestone page.
+- **Request body:** `items`: list built by the dialog (participate, assist and lead credits per challenge area); the item fields were not decoded
+- **Response:** **200** expected.
+- **What it does:** Adds credits that show under `imported.event_count` on the milestone record.
+- **Re-read with:** `GET /units/{unitId}/achievements?type=milestone`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Create a milestone record
+
+`POST achievements /members/{memberId}/create-achievement` · code only · hard to undo
+
+- **Used for:** Creating a milestone stage for a member who does not have one.
+- **Request body:** `section`: string; `stage`: number
+- **Response:** **200** expected.
+- **What it does:** Adds a milestone record for that stage.
+- **Re-read with:** `GET /members/{memberId}/achievements?type=milestone`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Skip or un-skip a milestone
+
+`PUT achievements /members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}` · code only · easy to undo
+
+- **Used for:** Marking a milestone stage as not required, and undoing it.
+- **Request body:** `skip: skipped_by`: the leader's full name; `skip: skip_notes`: string, may be empty; `unskip`: no body
+- **Response:** **200** expected.
+- **What it does:** A skipped milestone has `status: not_required` and `answers: { skipped_on, skipped_by, skip_notes, previous_status }`. Un-skipping restores the previous status.
+- **Re-read with:** `GET /members/{memberId}/achievements?type=milestone`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Set or revert an OAS stage award
+
+`PUT achievements /units/{unitId}/achievements/manage-oas-stage` · code only · hard to undo
+
+- **Used for:** Editing the award date of an OAS stage, or reverting it.
+- **Request body:** `items`: object built by the dialog: `{ action: "edit" \| "revert", date_awarded (edit only), member_id, oas_stage, section }`
+- **Response:** **200** expected.
+- **What it does:** Changes the awarded date of the stage, or takes the award back.
+- **Re-read with:** `GET /units/{unitId}/achievements?type=outdoor_adventure_skill&stream=…`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Award a special interest area to several members
+
+`PUT achievements /units/{unitId}/bulk-award-sia` · code only · hard to undo
+
+- **Used for:** The bulk SIA award dialog.
+- **Request body:** `plan_template, plan_version`: the SIA plan template used; `member_ids`: array of member ids; `answers`: the plan and review answers combined; `uploads`: plan and review uploads combined
+- **Response:** **200** expected; the client shows a result summary.
+- **What it does:** Creates awarded SIA records for every listed member.
+- **Re-read with:** `GET /units/{unitId}/achievements?type=special_interest_area`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Record an introduction badge
+
+`PUT achievements /units/{unitId}/members/{memberId}/import-achievements/introduction` · code only · hard to undo
+
+- **Used for:** Setting or editing the date for Introduction to Scouting or Introduction to Section.
+- **Request body:** `achievement_type`: `intro_scouting` or `intro_section`; `date_awarded`: `yyyy-mm-dd`; `section`: string; `action`: string chosen in the dialog (add or edit)
+- **Response:** **200** expected.
+- **What it does:** Creates or changes an imported introduction record (`imported.date_awarded`).
+- **Re-read with:** `GET /units/{unitId}/achievements?type=intro_scouting\|intro_section`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+#### Baseline import for a member
+
+`POST achievements /members/{memberId}/import-achievements  ·  /import-achievements/submit` · code only · hard to undo
+
+- **Used for:** The "Baseline Achievements" import used when a leader first sets up a member's progress.
+- **Request body:** `import-achievements`: `{ items }`: the baseline progress entered in the form; `import-achievements/submit`: no body
+- **Response:** Both **204** expected ("Achievement saved successfully" and "Member import finalised").
+- **What it does:** Writes the member's baseline and then finalises it. Meant to be a once-off.
+- **Re-read with:** `GET /members/{memberId}/achievements`
+- **Who can use it:** Leaders; the client offers it on the unit's pages.
+
+
+### Logbook
+
+A member's own adventure log.
+
+#### Add a logbook entry
+
+`POST achievements /members/{memberId}/logbook` · code only · easy to undo
+
+- **Used for:** "Add new record" on My Logbook. The path uses the signed-in user's id, which is the assumed member while a profile is assumed.
+- **Request body:** `title`: string; `start_date, end_date`: `yyyy-mm-dd`; `distance_travelled, distance_walkabout`: numbers; `categories`: array of strings; `achievement_meta`: `{ stream, branch }`, sent only when the activity area is an OAS stream; `details`: `{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }`. The client deletes empty `activity_grade`, `activity_time_length` and `who_lead` first.
+- **Response:** Success not decoded; the client then returns to the logbook list.
+- **What it does:** Adds an entry and updates the logbook totals (nights camped, distance hiked).
+- **Re-read with:** `GET /members/{memberId}/logbook`, `/logbook-metrics`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+#### Edit a logbook entry
+
+`PUT achievements /members/{memberId}/logbook/{logbookId}` · code only · easy to undo
+
+- **Used for:** "Edit" on an entry.
+- **Request body:** `(the same record)`: as when adding, but **without** the `id` field
+- **Response:** Success not decoded.
+- **What it does:** Replaces the entry and recalculates the totals.
+- **Re-read with:** `GET /members/{memberId}/logbook/{logbookId}`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+#### Delete a logbook entry
+
+`DELETE achievements /members/{memberId}/logbook/{logbookId}` · code only · hard to undo
+
+- **Used for:** "Delete" on an entry.
+- **Request body:** none
+- **Response:** Success not decoded.
+- **What it does:** Removes the entry and lowers the totals.
+- **Re-read with:** `GET /members/{memberId}/logbook`
+- **Who can use it:** The member, or a leader assuming their profile.
+
+
+### Events and calendars
+
+Programming: events, proposals and calendar settings.
+
+#### Create an event
+
+`POST events /units/{unitId}/events  ·  /groups/{groupId}/events  ·  /patrols/{patrolId}/events  ·  /events` · code only · hard to undo
+
+- **Used for:** Planning an activity, or logging one that has already happened ("Event created and concluded"). The route depends on who the event is for.
+- **Request body:** `title, description, justification, location`: strings; `organisers`: array of member ids; `challenge_area`: string; `start_datetime, end_datetime`: ISO date-times; `iana_timezone`: for example `Australia/Sydney`; `event_type`: `{ type, id }`: who it is for (group, unit, patrol or member); `attendance`: `{ leader_member_ids[], assistant_member_ids[], attendee_member_ids[], participant_member_ids[] }`; `schedule_items`: array; `achievement_pathway_oas_data, achievement_pathway_logbook_data`: objects, optional; `review`: `{ general_tags[], scout_method_elements[], scout_spices_elements[], general_rating?, growth_description?, scout_method_description? }`; `uploads, equipment_notes, additional_notes`: files and strings; `status`: `planned` or `concluded`; `invited_member_ids`: only for patrol project events
+- **Response:** **204** when creating a concluded event; the success code for a planned event was not decoded.
+- **What it does:** Adds the event to calendars. Concluded events record attendance, which appears to be where milestone credits (`event_log`) come from.
+- **Re-read with:** `GET /members/{memberId}/events?start_datetime=&end_datetime=`, `GET /events/{eventId}`
+- **Who can use it:** Not decoded; the client offers it from the Programming page.
+
+#### Update or conclude an event
+
+`PATCH events /events/{eventId}` · code only · hard to undo
+
+- **Used for:** Editing an event, or marking it concluded after it has happened.
+- **Request body:** `(the same event body)`: with `status` set to `planned` or `concluded`
+- **Response:** **204**, empty body.
+- **What it does:** Concluding an event records attendance against the people listed; it appears to be what produces milestone credits.
+- **Re-read with:** `GET /events/{eventId}`
+- **Who can use it:** Not decoded; the client offers it on an event's page.
+
+#### Cancel an event
+
+`DELETE events /events/{eventId}` · code only · hard to undo
+
+- **Used for:** "Cancel activity".
+- **Request body:** none
+- **Response:** Success not decoded; the client then returns to Programming.
+- **What it does:** Removes the event from calendars.
+- **Re-read with:** `GET /members/{memberId}/events`
+- **Who can use it:** Not decoded; the client offers it on an event's page.
+
+#### Propose an activity
+
+`POST events /units/{unitId}/proposals` · code only · easy to undo
+
+- **Used for:** A youth member's "Propose idea". The client shows "Proposal sent to Unit Council".
+- **Request body:** `title, description, justification, leader`: strings; `challenge_area`: string; `uploads`: array
+- **Response:** **201**.
+- **What it does:** Adds a proposal to the unit's list for Unit Council to review.
+- **Re-read with:** `GET /units/{unitId}/proposals`
+- **Who can use it:** Offered to unit members; the client sends it to the signed-in user's unit.
+
+#### Remove a proposal
+
+`DELETE events /proposals/{proposalId}` · code only · hard to undo
+
+- **Used for:** Removing a proposal once it is dealt with.
+- **Request body:** none
+- **Response:** Success not decoded; the client shows "removed successfully".
+- **What it does:** Deletes the proposal.
+- **Re-read with:** `GET /units/{unitId}/proposals`
+- **Who can use it:** Not decoded; the client offers it on a proposal's page.
+
+#### Choose which calendars you see
+
+`PUT events /members/{memberId}/calendars` · code only · easy to undo
+
+- **Used for:** The calendar list toggles on the Programming page.
+- **Request body:** `(the calendars object)`: `{ member_id, own_calendars[], other_calendars[] }` as read, with the `selected` flags changed
+- **Response:** **200**.
+- **What it does:** Only changes what the signed-in user sees; it does not change events.
+- **Re-read with:** `GET /members/{memberId}/calendars`
+- **Who can use it:** The signed-in member.
+
+#### Create iCal feed links
+
+`POST events /members/{memberId}/calendar-subscription` · code only · sensitive
+
+- **Used for:** "Subscribe" in the calendar dialog.
+- **Request body:** `(empty object)`: `{}`
+- **Response:** Not seen. A later `GET` returns the feed ids and URLs.
+- **What it does:** Creates private feed URLs. Anyone with a URL can read the calendar, so treat it as a secret.
+- **Re-read with:** `GET /members/{memberId}/calendar-subscription`
+- **Who can use it:** The signed-in member.
+
+
+### Account and access
+
+Assuming a profile, email, access requests and password resets.
+
+#### Assume a member's profile (and stop)
+
+`POST members /members/{memberId}/assume-profiles  then  /revoke-assumed-profiles` · observed live · easy to undo
+
+- **Used for:** "Manage achievement pathways" in Group Life, and "Stop managing achievement pathways" in the account menu.
+- **Request body:** none
+- **Response:** **204**, empty body, for both. Terrain calls revoke first, then assume, then re-reads `/profiles`.
+- **What it does:** Adds a temporary extra profile (30 minutes) carrying `datetime_expires` and `*-on-behalf` roles. Needed only to read another member's logbook, and for the member-level writes the client sends as that member.
+- **Re-read with:** `GET /profiles`
+- **Who can use it:** Leaders.
+
+#### Set your email address
+
+`PATCH members /users/{username}` · code only · sensitive
+
+- **Used for:** The "add your email" step shown when an account has none.
+- **Request body:** `email`: string
+- **Response:** Success not decoded; the client then returns to the home page.
+- **What it does:** Changes the email on the account (used for sign-in recovery).
+- **Re-read with:** `GET` Cognito `GetUser`
+- **Who can use it:** The signed-in user.
+
+#### Request support leader access
+
+`POST members /support-leader-access` · code only · sensitive
+
+- **Used for:** A support leader asking for access to another group.
+- **Request body:** `member_id`: the requester; `group_id`: the group being requested; `access_level`: the level chosen in the dialog; `action`: `REQUEST`; `request_note`: string, the reason
+- **Response:** Success not decoded ("Access request sent").
+- **What it does:** Raises an access request for a group leader to approve.
+- **Re-read with:** `GET /admin/support-leader-access-records?status=PENDING\|APPROVED`
+- **Who can use it:** Support leaders.
+
+#### Reset a member's password
+
+`POST members /members/{memberId}/reset` · code only · sensitive
+
+- **Used for:** "Reset password" on a member, shown to leaders.
+- **Request body:** none
+- **Response:** **200**. **The response contains the member's new password.**
+- **What it does:** Invalidates the old password. Do not call this from tooling.
+- **Re-read with:** none
+- **Who can use it:** Shown to leaders; the exact permission was not decoded.
+
+#### Reset an expired temporary password
+
+`POST members /members/expired_password_reset` · code only · sensitive
+
+- **Used for:** Part of sign-in when Cognito says a temporary password has expired.
+- **Request body:** `member_number`: string; `branch`: string
+- **Response:** 200 on success; the client then retries the sign-in.
+- **What it does:** Issues a fresh temporary password for that account.
+- **Re-read with:** none
+- **Who can use it:** Anyone attempting to sign in (unauthenticated flow).
 
 Do not call `reset` or the support-leader and admin routes from a read-only client.
 
