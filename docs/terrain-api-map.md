@@ -39,6 +39,9 @@ Auth is Cognito (`cognito-idp.ap-southeast-2.amazonaws.com`): `InitiateAuth` (pa
 | PUT / DELETE | `/groups/{groupId}/units/{unitId}` | |
 | PUT / DELETE | `/groups/{groupId}/units/{unitId}/members/{memberId}` (unit duty and council) | PUT ✔ tested and reverted (204) |
 | PUT / DELETE | `/groups/{groupId}/patrols/{patrolId}/members/{memberId}` (patrol membership and patrol duty; `{formation}` is `units` or `patrols`) | both ✔ tested and reverted (204) |
+| POST | `/groups/{groupId}/patrols` (create; 200 with the new patrol) | ✔ observed |
+| PUT | `/groups/{groupId}/patrols/{patrolId}` (rename; 200) | ✔ observed |
+| POST | `/groups/{groupId}/patrols/{patrolId}` (delete a patrol; 204, no body) | ✔ observed |
 | GET | `/units/{unitId}` | ✔ |
 | GET | `/units/{unitId}/members` | ✔ |
 | GET | `/units/{unitId}/patrols` | ✔ |

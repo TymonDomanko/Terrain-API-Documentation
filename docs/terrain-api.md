@@ -700,7 +700,44 @@ All 204 responses have an empty body. Reads show the change straight away.
 
 ## Not tested, and why
 
-- **Creating a patrol.** The web client creates one with `POST /groups/{g}/patrols` or `POST /units/{u}/patrols` and a body of `{ name, unit_id }`. It has **no call to delete or rename a patrol** (none in any of its 267 bundles), so a created patrol could not be removed again. It was not attempted.
+- **Creating, renaming and deleting a patrol.** These were not attempted in this round. They were recorded later from a leader's own session; see the next section.
 - **Replacing an existing leader.** Whether the server rejects or demotes a second patrol leader, assistant patrol leader or unit leader in the same patrol or unit was not tested, because the only way to find out is to risk changing another member's role.
 - **A youth member's record.** Everything above used an adult leader's record. Results for a youth may differ (for example the web client also re-sends the unit membership when a patrol duty is set for a youth).
 - **Unit council.** `unit_council` was only sent unchanged. Changing it can change a person's permissions, so it was not exercised.
+
+
+# Patrol create, rename and delete, and the web client's duty menu (recorded 2026-11-13)
+
+Recorded from a leader using Terrain's own pages in a signed-in session. The page's requests and responses were captured; tokens were not. The leader created a test patrol, renamed it and deleted it, then changed duties on one adult leader and one youth (a unit leader) and put everything back. Afterwards the group again had its original 17 patrols, and every unit's member list and the leader's own record matched their earlier state.
+
+## Patrol calls
+
+| Action | Call | Body | Response |
+|---|---|---|---|
+| Create | `POST members /groups/{g}/patrols` | `{ "name": "…", "unit_id": "…" }` | **200** `{ id, unit_id, name }` (the new patrol) |
+| Rename | `PUT members /groups/{g}/patrols/{p}` | `{ "name": "…" }` | **200** `{ id, unit_id, name }` |
+| Delete | `POST members /groups/{g}/patrols/{p}` | none | **204**, empty body |
+
+- **Delete is a `POST`, not a `DELETE`.** It goes to the patrol's own URL with no body and no `Content-Type`. After it the patrol was no longer in `GET /groups/{g}/patrols` (17 patrols again), so this is the call that removes a patrol. Its response gives no confirmation beyond the 204.
+- Deleting a patrol **that has members** was not recorded; only an empty test patrol was deleted.
+- After each change the page re-reads `GET /groups/{g}/patrols`, `/groups/{g}/members`, `/groups/{g}/units`, `/units/{u}/members`, `/units/{u}/metrics` and the unit agenda.
+
+## What each choice in the web client's Duty menu sends
+
+The web page shows one **Duty** menu per member (Scout, Adult Leader, Unit Leader, Patrol Leader, Assistant Patrol Leader). Each choice sends one or two requests, and every one of these answered **204** with an empty body:
+
+| Menu action (observed) | Requests sent, in order |
+|---|---|
+| Put a member in a patrol | `PUT /groups/{g}/patrols/{p}/members/{m}` `{ "duty": "member" }` |
+| Choose **Patrol Leader** | `PUT` the patrol member `{ "duty": "patrol_leader" }`, then `PUT /groups/{g}/units/{u}/members/{m}` `{ "duty": "member", "unit_council": <current value> }` |
+| Choose **Unit Leader** (member already in a patrol) | `PUT` the patrol member `{ "duty": "member" }`, then `PUT` the unit member `{ "duty": "unit_leader", "unit_council": <current value> }` |
+| Choose **Scout** | `PUT` the unit member `{ "duty": "member", "unit_council": <current value> }` |
+| Remove from a patrol | `DELETE /groups/{g}/patrols/{p}/members/{m}` |
+| Turn unit council on or off | `PUT` the unit member `{ "duty": <current duty>, "unit_council": true \| false }` |
+
+Observations:
+
+- **The page makes the three roles mutually exclusive, the API does not.** Choosing Patrol Leader also sets the unit duty to `member`, so a unit leader who becomes a patrol leader stops being a unit leader. The earlier direct tests showed the API accepting `patrol_leader` on a patrol membership while the unit duty stayed `adult_leader`, so the exclusivity is the page's choice. Whether the API accepts a member who is both unit leader and patrol leader was not tested.
+- **Unit-member writes always carry both fields.** Every `PUT` to a unit member sent `duty` and `unit_council` together, with `unit_council` set to the member's current value unless it was the council toggle itself.
+- **Quick double toggles are not merged.** Switching unit council on and straight off sent two separate `PUT`s about 130 ms apart.
+- **The patrol menu only offers a patrol duty to a member who is in a patrol.** A member with no patrol is offered only Scout, Adult Leader and Unit Leader.
