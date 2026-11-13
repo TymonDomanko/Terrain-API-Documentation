@@ -243,6 +243,7 @@
     <summary><h2>5. Rules and gotchas</h2></summary>
     <div class="secbody">
   <div class="note"><strong>Which award date to use:</strong> Terrain's own award date, the top-level <code>date_awarded</code>, wherever a record has one. Fallbacks, in order: <code>imported.date_awarded</code>, then <code>status_updated</code>. Anything that reads only <code>imported.date_awarded</code> and <code>status_updated</code> will show different dates for records recorded in Terrain, so check which field a report uses.</div>
+  <div class="note"><strong>Time zones:</strong> <code>status_updated</code> is a UTC instant (<code>+00:00</code>). In one unit's Scout SIA records the top-level <code>date_awarded</code> was the <strong>UTC calendar day</strong>, so an award made before about 8am (Perth) or 9:30 to 11am (other states) carries the previous day. <code>imported.date_awarded</code> is typed in, so do not shift it. Seen in one unit and one type only; a few records were a day earlier than the UTC day for an unknown reason. Details in the Markdown reference.</div>
   <div class="rules" id="ruleCards"></div>
     </div>
   </details>

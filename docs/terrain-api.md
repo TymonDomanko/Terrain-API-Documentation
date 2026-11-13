@@ -1086,6 +1086,16 @@ Milestone-only: `milestone_requirement_status`, `event_count` (participant, assi
 
 `date_awarded` (top level), `imported.date_awarded`, and `status_updated`. In the Scout unit, an awarded record never had both of the first two. Counts of awarded records with each: milestone 27 / 2 / neither 26; SIA 67 / 3 / 27; intro_scouting 13 / 17 / 13; intro_section 21 / 15 / 26; OAS 14 / 2 / 8.
 
+### Time zones: `date_awarded` is a UTC day (reported 2026-11-14)
+
+`status_updated` and `last_updated` are UTC instants with an explicit offset (`2026-08-26T22:25:47.846666+00:00`). Clients such as .NET/Newtonsoft turn these into the viewer's local time without being told to. The top-level `date_awarded` is a bare `yyyy-mm-dd`, and in one unit's Scout-section SIA records it was the **UTC calendar day**, not the local one:
+
+- Of 22 records that had it, 19 equalled the UTC day of `status_updated` and 16 equalled the Sydney day. In every record where the UTC and Sydney days differed, `date_awarded` matched the UTC day. Example: `status_updated` 2026-08-26T22:25Z is 8:25am on 27 Aug in Sydney, and `date_awarded` was `2026-08-26`.
+- So an award made between midnight and about 8am (Perth) or 9:30 to 11am (other states and territories) carries the previous calendar day.
+- 3 of the 22 matched neither: `date_awarded` was one day **before** the UTC day of `status_updated` (for example `status_updated` 2025-07-24T05:38Z, `date_awarded` 2025-07-23). Not a time zone effect; the cause is unknown (a guess, unconfirmed: the award was dated earlier than the record was last touched).
+- `imported.date_awarded` is a typed-in date, not a UTC day, so it should not be shifted.
+- Not checked: other types (milestone, OAS, introductions, peak awards share the field), and whether `presented_date` on approvals and additional awards, or event start and end times, are also UTC. The counts above come from one unit and one type, and were not compared against the "about half differ" figures below, which cover more records.
+
 Where a top-level `date_awarded` exists it differs from the `status_updated` day in about half the cases (milestone 14 of 27, up to 22 days; SIA 34 of 67, up to 168 days; intro_scouting 11 of 13 and intro_section 15 of 21, up to 427 days).
 
 ## Submissions (`/units/{id}/submissions`)
