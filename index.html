@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrain API documentation: where to find what</title>
+<meta name="description" content="Unofficial reference to the Scouts Australia Terrain API: every call found, sorted by level, with what each returns.">
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d2433; --muted: #5b6478; --line: #dfe2e8; --accent: #1f4fd8;
+    --code-bg: #eef0f4;
+    --c-auth: #6b7280; --c-personal: #b45309; --c-member: #7c3aed; --c-patrol: #0f766e; --c-unit: #1d4ed8;
+    --c-group: #be123c; --c-event: #0e7490; --c-reference: #4d7c0f; --c-write: #374151;
+    --ok: #166534; --ok-bg: #dcfce7; --code-c: #92400e; --code-bg2: #fef3c7; --no: #991b1b; --no-bg: #fee2e2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c; --panel: #1a1f2a; --ink: #e8eaf0; --muted: #9aa3b5; --line: #2c3342; --accent: #8aa8ff; --code-bg: #242b3a;
+      --c-auth: #9ca3af; --c-personal: #fbbf24; --c-member: #c4b5fd; --c-patrol: #5eead4; --c-unit: #93c5fd;
+      --c-group: #fda4af; --c-event: #67e8f9; --c-reference: #bef264; --c-write: #cbd5e1;
+      --ok: #86efac; --ok-bg: #14301f; --code-c: #fcd34d; --code-bg2: #3a2e12; --no: #fca5a5; --no-bg: #3a1717;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+  header.top { padding: 28px 24px 8px; max-width: 1180px; margin: 0 auto; }
+  header.top h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.01em; }
+  header.top p { margin: 0; color: var(--muted); max-width: 78ch; }
+  nav.bar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  nav.bar .in { max-width: 1180px; margin: 0 auto; padding: 8px 24px; display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; font-size: 13.5px; }
+  nav.bar a { text-decoration: none; color: var(--muted); padding: 3px 2px; border-bottom: 2px solid transparent; }
+  nav.bar a:hover { color: var(--ink); border-color: var(--accent); }
+  main { max-width: 1180px; margin: 0 auto; padding: 8px 24px 80px; }
+  section { margin-top: 36px; scroll-margin-top: 56px; }
+  h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 0; }
+  .lede { color: var(--muted); margin: 0 0 14px; max-width: 80ch; }
+
+  /* level diagram */
+  .diagram { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin-top: 12px; }
+  @media (max-width: 800px) { .diagram { grid-template-columns: 1fr; } }
+  .nest { border: 2px solid var(--c-group); border-radius: 12px; padding: 10px 12px 12px; background: var(--panel); }
+  .nest .nest { border-color: var(--c-unit); margin-top: 8px; }
+  .nest .nest .nest { border-color: var(--c-patrol); }
+  .nest .nest .nest .nest { border-color: var(--c-member); }
+  .nest > .nt { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .nest .nn { font-weight: 650; }
+  .nest .nd { color: var(--muted); font-size: 13px; }
+  .side { display: grid; gap: 10px; align-content: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .card.click, .nest .pick { cursor: pointer; }
+  .pick { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .pick:hover .nn { text-decoration: underline; }
+  .lv { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; }
+  .lv-auth { color: var(--c-auth); } .lv-personal { color: var(--c-personal); } .lv-member { color: var(--c-member); }
+  .lv-patrol { color: var(--c-patrol); } .lv-unit { color: var(--c-unit); } .lv-group { color: var(--c-group); }
+  .lv-event { color: var(--c-event); } .lv-reference { color: var(--c-reference); } .lv-write { color: var(--c-write); }
+
+  /* controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 14px; }
+  input[type=search] { flex: 1 1 260px; min-width: 200px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; }
+  .chip { border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  /* call cards */
+  .group-head { display: flex; align-items: center; gap: 10px; margin: 26px 0 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+  .group-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .calls { display: grid; gap: 8px; }
+  details.call { background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--lc, var(--line)); border-radius: 10px; }
+  details.call > summary { list-style: none; cursor: pointer; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: baseline; }
+  details.call > summary::-webkit-details-marker { display: none; }
+  details.call > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+  .m { font-weight: 700; font-size: 12px; padding: 1px 7px; border-radius: 6px; background: var(--code-bg); color: var(--ink); font-family: ui-monospace, Menlo, monospace; }
+  .m.POST, .m.PUT, .m.PATCH, .m.DELETE { background: var(--no-bg); color: var(--no); }
+  .ttl { font-weight: 600; }
+  .path { grid-column: 1 / -1; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: var(--muted); word-break: break-all; }
+  .path b { color: var(--ink); font-weight: 600; }
+  .ret { grid-column: 1 / -1; font-size: 13.5px; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.live { background: var(--ok-bg); color: var(--ok); }
+  .tag.code { background: var(--code-bg2); color: var(--code-c); }
+  .tag.no { background: var(--no-bg); color: var(--no); }
+  .body { padding: 2px 14px 14px 14px; border-top: 1px dashed var(--line); display: grid; gap: 8px; }
+  .body dl { margin: 8px 0 0; display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; }
+  .body dt { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; padding-top: 2px; }
+  .body dd { margin: 0; }
+  @media (max-width: 640px) { .body dl { grid-template-columns: 1fr; } }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: color-mix(in srgb, var(--panel) 80%, var(--bg)); position: sticky; top: 0; }
+  tr:last-child td { border-bottom: 0; }
+  td.q { font-weight: 600; min-width: 190px; }
+  @media (max-width: 980px) {
+    #ftable thead { display: none; }
+    #ftable, #ftable tbody, #ftable tr, #ftable td { display: block; width: 100%; }
+    #ftable tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    #ftable td { border: 0; padding: 3px 0; min-width: 0; }
+    #ftable td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+    #ftable td.q::before { display: none; }
+  }
+  .rules { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .rules .card h3 { margin-bottom: 4px; }
+  .rules .card p { margin: 0 0 6px; font-size: 14px; }
+  .rules ul { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+  .note { border-left: 4px solid var(--c-personal); background: var(--panel); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 10px 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 13px; }
+
+  /* collapsible sections */
+  details.sec > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); user-select: none; }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary::before { content: ""; width: 9px; height: 9px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; margin: 0 4px 2px 2px; flex: none; }
+  details.sec[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; }
+  details.sec > summary:hover h2 { color: var(--accent); }
+  details.sec > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  details.sec > summary h2 { margin: 0; }
+  .secbody { padding-top: 12px; }
+  .toolbar { display: flex; gap: 8px; margin-left: auto; }
+  .toolbar button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { details.sec > summary::before { transition: none; } }
+  .hidden { display: none !important; }
+  @media print { nav.bar, .controls { display: none; } details.call > .body { display: grid; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Terrain API documentation: where to find what</h1>
+  <p>Every Terrain API call found, sorted by <strong>level</strong> (you, a member, a patrol, a unit, the group) so you can see which call gives which information. Checked against a real signed-in group on 2026-11-13. Click a call to see what it returns.</p>
+  <div class="legend">
+    <span><span class="tag live">live</span> response inspected in a real session</span>
+    <span><span class="tag code">code only</span> taken from the Terrain web client's code, not called</span>
+    <span><span class="tag no">not a read</span> writes, deliberately not called</span>
+  </div>
+</header>
+
+<nav class="bar" aria-label="Sections">
+  <div class="in">
+    <a href="#levels">Levels</a>
+    <a href="#finder">I want to know…</a>
+    <a href="#calls">All calls</a>
+    <a href="#fields">Achievement fields</a>
+    <a href="#rules">Rules and gotchas</a>
+    <a href="#writes">Writes (avoid)</a>
+    <span class="toolbar"><button type="button" id="expandAll">Expand all</button><button type="button" id="collapseAll">Collapse all</button></span>
+  </div>
+</nav>
+
+<main>
+
+<section id="levels">
+  <details class="sec" open>
+    <summary><h2>1. The levels</h2></summary>
+    <div class="secbody">
+  <p class="lede">Terrain organises everything as a tree. Pick a level to filter the call list below. Most reporting data lives at <strong>unit</strong> level, because one call returns every member of a unit.</p>
+  <div class="diagram">
+    <div class="nest">
+      <div class="nt"><button class="pick" data-level="group"><span class="lv lv-group">Group</span> <span class="nn">Your scout group</span></button></div>
+      <div class="nd">Lists units, patrols and a partial member list. Roster is not complete here.</div>
+      <div class="nest">
+        <div class="nt"><button class="pick" data-level="unit"><span class="lv lv-unit">Unit</span> <span class="nn">Joey, Cub, Scout, Venturer…</span></button></div>
+        <div class="nd">Best level for reports: members, metrics, every member's achievements, approvals.</div>
+        <div class="nest">
+          <div class="nt"><button class="pick" data-level="patrol"><span class="lv lv-patrol">Patrol</span> <span class="nn">Patrols inside a unit</span></button></div>
+          <div class="nd">Patrol lists and thin member lists.</div>
+          <div class="nest">
+            <div class="nt"><button class="pick" data-level="member"><span class="lv lv-member">Member</span> <span class="nn">One youth or leader</span></button></div>
+            <div class="nd">Full achievement history, progress, logbook (logbook needs an assumed profile).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <button class="pick card" data-level="personal"><span class="lv lv-personal">Personal</span> <strong>You, the signed-in user</strong><div class="nd" style="color:var(--muted);font-size:13px">Profiles and roles, your own achievements, logbook, calendars. No special permission needed.</div></button>
+      <button class="pick card" data-level="event"><span class="lv lv-event">Event</span> <strong>Programming</strong><div class="nd" style="color:var(--muted);font-size:13px">Event lists, attendance, proposals. Events belong to a member, unit or group.</div></button>
+      <button class="pick card" data-level="reference"><span class="lv lv-reference">Reference</span> <strong>Templates and names</strong><div class="nd" style="color:var(--muted);font-size:13px">What an award or stage is called and what its requirements are. Same for everyone.</div></button>
+      <button class="pick card" data-level="auth"><span class="lv lv-auth">Sign-in</span> <strong>Authentication</strong><div class="nd" style="color:var(--muted);font-size:13px">Cognito tokens. Everything else needs the id token.</div></button>
+    </div>
+  </div>
+    </div>
+  </details>
+</section>
+
+<section id="finder">
+  <details class="sec" open>
+    <summary><h2>2. I want to know…</h2></summary>
+    <div class="secbody">
+  <p class="lede">Start from the question. The "best level" column is the cheapest call that answers it.</p>
+  <div class="controls"><input id="fsearch" type="search" placeholder="Filter questions, e.g. camping, approval, attendance, patrol"><span class="count" id="fcount"></span></div>
+  <div class="tablewrap"><table id="ftable"><thead><tr><th>I want to know</th><th>Best level</th><th>Call</th><th>Fields to read</th><th>Watch out for</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </details>
+</section>
+
+<section id="calls">
+  <details class="sec" open>
+    <summary><h2>3. All calls, by level</h2></summary>
+    <div class="secbody">
+  <p class="lede">Hosts: <code>members</code>, <code>achievements</code>, <code>events</code>, <code>templates</code>, <code>agenda</code> are all <code>https://&lt;host&gt;.terrain.scouts.com.au</code>. Every call sends the id token in <code>authorization</code> (no "Bearer").</p>
+  <div class="controls" id="cctl">
+    <input id="csearch" type="search" placeholder="Filter calls, e.g. milestone, logbook, /units, metrics">
+    <button class="chip" data-f="all" aria-pressed="true">All</button>
+    <button class="chip" data-f="live" aria-pressed="false">Live only</button>
+    <button class="chip" data-f="code" aria-pressed="false">Code only</button>
+    <span class="count" id="ccount"></span>
+  </div>
+  <div id="levelchips" class="controls" style="margin-top:-4px"></div>
+  <div id="callList"></div>
+    </div>
+  </details>
+</section>
+
+<section id="fields">
+  <details class="sec" open>
+    <summary><h2>4. Achievement fields: what is on a record</h2></summary>
+    <div class="secbody">
+  <p class="lede">The same record shape comes back from the member and unit calls. Only the first six fields are always there.</p>
+  <div class="tablewrap"><table><thead><tr><th>Field</th><th>Present on</th><th>Meaning</th></tr></thead><tbody id="fieldRows"></tbody></table></div>
+  <h3 style="margin:20px 0 8px">Achievement types</h3>
+  <div class="tablewrap"><table><thead><tr><th><code>type=</code> value</th><th>What it is</th><th><code>achievement_meta</code></th><th>Counts seen in the Scout unit</th></tr></thead><tbody id="typeRows"></tbody></table></div>
+    </div>
+  </details>
+</section>
+
+<section id="rules">
+  <details class="sec" open>
+    <summary><h2>5. Rules and gotchas</h2></summary>
+    <div class="secbody">
+  <div class="note"><strong>Which award date to use:</strong> Terrain's own award date, the top-level <code>date_awarded</code>, wherever a record has one. Fallbacks, in order: <code>imported.date_awarded</code>, then <code>status_updated</code>. Anything that reads only <code>imported.date_awarded</code> and <code>status_updated</code> will show different dates for records recorded in Terrain, so check which field a report uses.</div>
+  <div class="rules" id="ruleCards"></div>
+    </div>
+  </details>
+</section>
+
+<section id="writes">
+  <details class="sec" open>
+    <summary><h2>6. Write calls (not needed for reading data)</h2></summary>
+    <div class="secbody">
+  <p class="lede">Taken from the Terrain web client's code. None were called while writing this page. Success codes are what the client expects.</p>
+  <div class="tablewrap"><table><thead><tr><th>Call</th><th>Body</th><th>Success</th></tr></thead><tbody id="writeRows"></tbody></table></div>
+    </div>
+  </details>
+</section>
+
+</main>
+<footer><strong>Unofficial.</strong> This is not affiliated with or endorsed by Scouts Australia. Terrain's API is undocumented and can change without notice. Longer notes: <a href="https://github.com/TymonDomanko/Terrain-API-Documentation/blob/main/docs/terrain-api.md">response shapes</a> and <a href="https://github.com/TymonDomanko/Terrain-API-Documentation/blob/main/docs/terrain-api-map.md">call map</a> (Markdown), and the <a href="https://github.com/TymonDomanko/Terrain-API-Documentation">repository</a>. Observed 2026-11-13 on one NSW group with four units. Counts and sizes are from that group. This page records structure only, no member data.</footer>
+
+<script>
+const LEVELS = [
+  { id: 'group',     label: 'Group',     blurb: 'Your scout group: its units, patrols and a partial member list.' },
+  { id: 'unit',      label: 'Unit',      blurb: 'One unit (Joey, Cub, Scout, Venturer): members, metrics, every member\'s achievements, approvals.' },
+  { id: 'patrol',    label: 'Patrol',    blurb: 'Patrols and their members.' },
+  { id: 'member',    label: 'Member',    blurb: 'One person: their full achievement history, progress, and (with assume) logbook.' },
+  { id: 'personal',  label: 'Personal',  blurb: 'You, the signed-in user: roles, own records, own logbook, calendars.' },
+  { id: 'event',     label: 'Event',     blurb: 'Programming: events, attendance, proposals.' },
+  { id: 'reference', label: 'Reference', blurb: 'Templates: names and requirements for awards, stages and sections.' },
+  { id: 'auth',      label: 'Sign-in',   blurb: 'Cognito authentication.' },
+];
+const LV = Object.fromEntries(LEVELS.map(l => [l.id, l]));
+
+// status: live | code
+const CALLS = [
+  /* ---------- AUTH ---------- */
+  { level:'auth', host:'cognito-idp.ap-southeast-2.amazonaws.com', method:'POST', path:'/ with X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth', title:'Sign in', status:'live',
+    returns:'Access token, id token, refresh token and lifetime.',
+    fields:'AuthenticationResult { AccessToken, IdToken, RefreshToken, ExpiresIn, TokenType }',
+    access:'Username is <code>&lt;branch&gt;-&lt;memberNumber&gt;</code> (for example <code>nsw-…</code>). Body: <code>AuthFlow USER_PASSWORD_AUTH</code>, <code>ClientId</code>, <code>AuthParameters {USERNAME, PASSWORD}</code>. Terrain has more than one Cognito app client id and the one that works depends on the account (not verified here).',
+    notes:'Content type <code>application/x-amz-json-1.1</code>. Failure bodies are <code>{ __type, message }</code>.' },
+  { level:'auth', host:'cognito-idp.ap-southeast-2.amazonaws.com', method:'POST', path:'/ (InitiateAuth, REFRESH_TOKEN_AUTH)', title:'Refresh the token', status:'live',
+    returns:'New access and id tokens. <strong>No new refresh token</strong>: keep the old one.',
+    fields:'AuthenticationResult { AccessToken, IdToken, ExpiresIn, TokenType }',
+    access:'Body: <code>REFRESH_TOKEN</code>, <code>DEVICE_KEY</code> null.', notes:'Refresh a minute before the id token\'s <code>exp</code> claim.' },
+  { level:'auth', host:'cognito-idp.ap-southeast-2.amazonaws.com', method:'POST', path:'/ (GetUser)', title:'Cognito user attributes', status:'live',
+    returns:'Only email, email_verified and sub.', fields:'UserAttributes[3] { Name, Value }, Username',
+    access:'Body <code>{ AccessToken }</code>.', notes:'The id token has no custom claims either: no branch, group or role. Roles come from <code>/profiles</code>.' },
+
+  /* ---------- PERSONAL ---------- */
+  { level:'personal', host:'members', method:'GET', path:'/profiles', title:'Your profiles, roles and units', status:'live',
+    returns:'One profile per unit you belong to, with your role at member, unit and group level.',
+    fields:'{ username, profiles[] { member{id,name,roles[]}, unit{id,name,roles[],section}, group{id,name,roles[]} } }',
+    access:'Always allowed. Roles seen: <code>group-leader</code>, <code>unit-council</code>, <code>unit-write</code>, <code>achievement-write</code>.',
+    notes:'This is the source for your member id, group id and unit ids. While a profile is assumed it returns <strong>one extra</strong> profile with <code>datetime_expires</code> and <code>*-on-behalf</code> roles, so never trust <code>profiles[0]</code> for identity then.' },
+  { level:'personal', host:'members', method:'GET', path:'/members/{yourId}', title:'Your member record', status:'live',
+    returns:'Name, role, member number, date of birth, all your units, patrols and groups.',
+    fields:'{ id, first_name, last_name, status, role, member_number, date_of_birth, units[]{id,section,duty,unit_council}, patrols[]{id,name,duty}, groups[]{id,name} }', access:'Always allowed for yourself.', notes:'' },
+  { level:'personal', host:'members', method:'GET', path:'/members/{id}/groups', title:'Groups you belong to', status:'live', returns:'Array of groups.', fields:'[{ id, name }]', access:'', notes:'Bare array, not wrapped in results.' },
+  { level:'personal', host:'achievements', method:'GET', path:'/members/{yourId}/logbook', title:'Your logbook entries', status:'live',
+    returns:'Summary list of your adventure log entries.', fields:'{ results[] { id, title, start_date, achievement_meta{stream,branch} } }', access:'No assume needed for your own.', notes:'<code>stream</code> and <code>branch</code> can differ (stream paddling, branch canoeing).' },
+  { level:'personal', host:'achievements', method:'GET', path:'/members/{yourId}/logbook-metrics', title:'Your logbook totals', status:'live',
+    returns:'Running totals that drive the Camper and Walkabout awards.', fields:'{ results[] { name, value, last_updated } }', access:'', notes:'Names seen: <code>total_nights_camped</code>, <code>total_distance_hiked</code>.' },
+  { level:'personal', host:'achievements', method:'GET', path:'/members/{yourId}/logbook/{logbookId}', title:'One logbook entry in full', status:'live',
+    returns:'Distances, categories and activity details.', fields:'{ id, title, start_date, end_date, achievement_meta, distance_travelled, distance_walkabout, categories[], details{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role } }', access:'', notes:'' },
+  { level:'personal', host:'events', method:'GET', path:'/members/{yourId}/calendars', title:'Calendars you have switched on', status:'live',
+    returns:'Which calendars (own and other units) are selected.', fields:'{ member_id, own_calendars[] {id,type,title,selected,section}, other_calendars[] }', access:'', notes:'Changing the selection is a <code>PUT</code> to this same URL.' },
+  { level:'personal', host:'events', method:'GET', path:'/members/{yourId}/organised-events', title:'Events you organise', status:'live', returns:'Short list of events you organise.', fields:'{ results[] { id, start_datetime, end_datetime, title, status, group_id } }', access:'', notes:'' },
+  { level:'personal', host:'events', method:'GET', path:'/members/{yourId}/calendar-subscription', title:'Your iCal feed links', status:'live', returns:'Feed ids and URLs.', fields:'{ member_id, feeds{ own_feed_id, others_feed_id, own_feed_url, others_feed_url } }', access:'', notes:'<strong>The feed URLs are secrets.</strong> Do not log or display them.' },
+
+  /* ---------- MEMBER ---------- */
+  { level:'member', host:'members', method:'GET', path:'/members/{id}', title:'Any member in your group', status:'live',
+    returns:'Name, role, member number, date of birth, units, patrols, groups.', fields:'Same as your own member record.',
+    access:'<span class="tag live">200</span> for current members of your group. 403 for people who are not (40 of 40 sampled from the extra 293 in the invitees list).', notes:'' },
+  { level:'member', host:'achievements', method:'GET', path:'/members/{id}/achievements', title:'All of one member\'s achievements', status:'live',
+    returns:'Every type in one list. Add <code>?type=</code> to get one type.', fields:'{ results[] Achievement } (see section 4)',
+    access:'Works for another member <strong>without assuming a profile</strong>. Allowed types: milestone, intro_scouting, intro_section, outdoor_adventure_skill, adventurous_journey, course_reflection, personal_reflection, peak_award, additional_award, special_interest_area.',
+    notes:'Any other <code>type</code> returns 400 <code>{ errors: { type: ["unallowed value …"] } }</code>. Sizes: 4 records for a new leader, 66 records and 419 KB for an active scout.' },
+  { level:'member', host:'achievements', method:'GET', path:'/members/{id}/achievements/{achievementId}?type=…', title:'One achievement', status:'live', returns:'The same record as in the list.', fields:'Achievement', access:'', notes:'' },
+  { level:'member', host:'achievements', method:'GET', path:'/members/{id}/achievements/{achievementId}/submissions', title:'Submissions of one achievement', status:'live', returns:'Empty array for the one tested.', fields:'bare array', access:'', notes:'Populated shape not seen.' },
+  { level:'member', host:'achievements', method:'GET', path:'/members/{id}/peak-award-progress?section=scout', title:'Peak award progress', status:'live',
+    returns:'Progress towards the section\'s peak award, broken down by part.',
+    fields:'{ intro_scouting, intro_section: bool; milestones{ has_met_milestone_3_requirement, current_milestone_stage, current_milestone_credits{…}, section_milestone_statuses{stage_1..3_status} }; oas{ completed_progressions_in_section, oas_percentage_progress, highest_progressions[]{stream,branch,stage} }; sia{ completed_projects, projects_in_progress, sia_percentage_progress, areas_completed[] }; adventurous_journey_progress, personal_development_progress, personal_reflection_progress, essentials_progress, peak_award_progress }',
+    access:'Works for another member without assuming.', notes:'The same numbers as the unit metrics call, with renamed keys.' },
+  { level:'member', host:'achievements', method:'GET', path:'/members/{id}/logbook  ·  /logbook-metrics  ·  /logbook/{logbookId}', title:'Another member\'s logbook', status:'live',
+    returns:'Same shapes as your own logbook.', fields:'See Personal level.', access:'<span class="tag no">403 unless you assume that member\'s profile</span> first. This is the only data that needs assuming.', notes:'' },
+  { level:'member', host:'members', method:'POST', path:'/members/{id}/assume-profiles  then  /revoke-assumed-profiles', title:'Assume a member\'s profile (for logbooks)', status:'live',
+    returns:'204, no body, both calls.', fields:'Terrain sends revoke first, then assume, then re-reads <code>/profiles</code>.',
+    access:'Leaders only. Lasts 30 minutes, then expires. Stop with revoke.', notes:'It adds a fifth profile to <code>/profiles</code>. Always revoke when done.' },
+
+  /* ---------- PATROL ---------- */
+  { level:'patrol', host:'members', method:'GET', path:'/units/{unitId}/patrols', title:'Patrols in a unit', status:'live', returns:'Patrol ids and names.', fields:'{ results[] { id, unit_id, name } }', access:'', notes:'2, 6, 7 and 2 patrols in the four units.' },
+  { level:'patrol', host:'members', method:'GET', path:'/groups/{groupId}/patrols', title:'All patrols in the group', status:'live', returns:'Patrol ids, names and which unit.', fields:'{ results[] { id, unit_id, name } }', access:'', notes:'17 patrols. No duties on this call.' },
+  { level:'patrol', host:'members', method:'GET', path:'/patrols/{patrolId}/members', title:'Members of a patrol (thin)', status:'live', returns:'Just names and numbers.', fields:'{ results[] { id, member_number, first_name, last_name, status } }',
+    access:'', notes:'<strong>No unit, no patrol duty and no date of birth.</strong> Use the unit members call when you need roles.' },
+
+  /* ---------- UNIT ---------- */
+  { level:'unit', host:'members', method:'GET', path:'/units/{unitId}', title:'Unit details', status:'live', returns:'Name, section, group.', fields:'{ id, name, section, group_id }', access:'', notes:'' },
+  { level:'unit', host:'members', method:'GET', path:'/units/{unitId}/members', title:'Roster: everyone in a unit', status:'live',
+    returns:'Every member with their duty and patrol.', fields:'{ results[] { id, member_number, first_name, last_name, status, date_of_birth, groups[], unit{id,section,duty,unit_council,group_id}, patrol{id,name,duty}|null, metadata{achievement-import} }, total }',
+    access:'', notes:'<code>total</code> equals the number returned in all four units: this is the complete roster. <code>unit.duty</code> is member, adult_leader or unit_leader. <code>patrol.duty</code> is member, patrol_leader or assistant_patrol_leader.' },
+  { level:'unit', host:'members', method:'GET', path:'/units/{unitId}/metrics', title:'Per-member progress summary for the unit', status:'live',
+    returns:'One call, one entry per member, with progress numbers and completion dates.', fields:'[ { member_name, member_id, date_of_birth, achievement_metrics{ peak_award_progress, intro_scouting_completed_date, intro_section_completed_date, milestone_metrics{…}, special_interest_area_metrics{…}, outdoor_adventure_skill_metrics{ highest_progressions[] }, adventurous_journey_completed_date, personal_development_completed_date, personal_reflection_completed_date, additional_awards[] }, event_metrics{ recent_event_count, recent_unit_event_count } } ]',
+    access:'', notes:'<strong>Bare array</strong>, 13 to 65 KB. Summaries only: no per-requirement detail and no award dates for individual stages.' },
+  { level:'unit', host:'achievements', method:'GET', path:'/units/{unitId}/achievements?type={type}', title:'Every member\'s achievements of one type', status:'live',
+    returns:'All members\' records of that type in a single call (grouped by member).', fields:'{ results[] Achievement } (section 4)',
+    access:'Works without assuming. Filters that work: <code>stage</code>, <code>section</code>, and for OAS <code>stream</code> and <code>branch</code>. Ignored: <code>status</code>, <code>member_id</code>, paging.',
+    notes:'Scout unit counts: milestone 200, SIA 126, intro_section 64, OAS 396 (Cub). Up to 1.9 MB for OAS unfiltered. Without <code>type</code> it can fail on big units (4.4 MB worked, the Scout unit did not). Milestone records span all the member\'s sections: filter with <code>section=</code>.' },
+  { level:'unit', host:'achievements', method:'GET', path:'/units/{unitId}/submissions?status=pending|finalised', title:'Approvals: pending and the full history', status:'live',
+    returns:'Submitted achievements waiting for approval, or the finished history.', fields:'{ results[] { achievement{id,type,achievement_meta}, submission{id,type,date,status,actioned_by[],outcome?}, unit_permissions{write}, member{id,first_name,last_name}, submitted_by? } }',
+    access:'200 only for a unit where you have the approval role (the Scout unit); <span class="tag no">403 for the other three</span>. Treat 403 as empty.', notes:'<strong>Finalised: 976 entries, 906 KB, from 2020-11 to 2026-11</strong>, 78 members. A six-year log of who approved or awarded what, and when.' },
+  { level:'unit', host:'agenda', method:'GET', path:'/units/{unitId}/member-agenda', title:'Pending approvals list (agenda)', status:'live', returns:'The same items as pending submissions.', fields:'{ count, generated_on, items[] { date, title, scope, type:"submission", data{achievement,submission,member,unit_permissions} } }', access:'', notes:'0 items for units where you have no approval role.' },
+  { level:'unit', host:'events', method:'GET', path:'/units/{unitId}/proposals', title:'Proposed activities', status:'live', returns:'Activity proposals from youth.', fields:'{ results[] { id, title, description, justification, leader, challenge_area, created_at, proposing_member{id,first_name,last_name}, uploads[] } }', access:'', notes:'' },
+
+  /* ---------- GROUP ---------- */
+  { level:'group', host:'members', method:'GET', path:'/groups/{groupId}/units', title:'Units in the group', status:'live', returns:'Unit ids, names and sections.', fields:'{ results[] { id, name, section, group_id } }', access:'Only your own group (others give 403).', notes:'Sections seen: joey, cub, scout, venturer.' },
+  { level:'group', host:'members', method:'GET', path:'/groups/{groupId}/members', title:'Group member list (partial)', status:'live',
+    returns:'140 active members, with units[] (0 to 4 each) and a single unit and patrol.', fields:'{ results[] { id, first_name, last_name, status, member_number, date_of_birth, role, units[], unit, patrol, metadata }, total:433 }',
+    access:'', notes:'<strong>Not the full roster.</strong> <code>total</code> says 433 but only 140 are returned. 27 of the 140 have no unit, and 3 members who are in a unit are missing. <code>limit</code> and <code>offset</code> are rejected. Build the roster from the unit endpoints.' },
+  { level:'event', host:'events', method:'GET', path:'/events/{eventId}/invitees', title:'Everyone who could be invited (433)', status:'live', returns:'All 433 people, not just those invited.', fields:'{ results[] { id, first_name, last_name, member_number } }', access:'', notes:'A superset of the 140. 293 of them give 403 on <code>/members/{id}</code>, so probably not current members.' },
+
+  { level:'group', host:'members', method:'GET', path:'/branches/{branchId}/groups?…&limit={n}', title:'Search groups in a branch', status:'code',
+    returns:'Group search results (used when a support leader requests access).', fields:'{ results[] { group_id, … } }',
+    access:'Needs your branch id, which is <strong>not in your profiles or token</strong>. Not called while documenting.', notes:'The only call in Terrain\'s own client that takes <code>limit</code>.' },
+  { level:'personal', host:'members', method:'GET', path:'/support-leader-groups', title:'Groups you support (support leaders)', status:'live',
+    returns:'<span class="tag no">403, empty body</span> for a normal leader.', fields:'not seen', access:'Support leaders only.', notes:'Treat 403 as "none".' },
+  { level:'member', host:'members', method:'GET', path:'/members/?branch={branch}&member_number={number}', title:'Look up a member by number', status:'code',
+    returns:'A member matching a branch and number.', fields:'not seen', access:'Not called while documenting: it looks up any person by number.', notes:'Used by Terrain\'s add-member and sign-in flows.' },
+  { level:'personal', host:'agenda', method:'GET', path:'/members/{id}/psl-agenda', title:'Support leader agenda', status:'code',
+    returns:'Agenda for support leaders.', fields:'not seen', access:'The call was rejected for a normal leader.', notes:'' },
+
+  /* ---------- EVENT ---------- */
+  { level:'event', host:'events', method:'GET', path:'/members/{id}/events?start_datetime=&end_datetime=', title:'A member\'s events in a date range', status:'live',
+    returns:'Events the member is invited to, including unit and group activities.', fields:'{ results[] { id, start_datetime, end_datetime, title, invitee_type, status, challenge_area, section, invitee_id, invitee_name, group_id } }',
+    access:'<code>end_datetime</code> is required (else 400 <code>end_datetime required</code>). Ranges up to 20 years worked (1,333 events, 542 KB).',
+    notes:'Add <code>&amp;download_format=csv&amp;download_tz=Australia/Melbourne</code> and the <strong>server returns CSV</strong>: title line, then <code>Start date, Start time, End date, End time, Location, Activity name, Who is this activity for?, Who is leading?, Who is assisting?</code>. Status: planned or concluded.' },
+  { level:'event', host:'events', method:'GET', path:'/events/{eventId}', title:'One event in full, with attendance', status:'live',
+    returns:'Details, organisers, who attended, review and any achievement pathway data.', fields:'{ id, status, title, location, organisers[], challenge_area, start/end_datetime, attendance{ leader_members[], assistant_members[], participant_members[], attendee_members[] }, invitees[], review{general_rating,general_tags,scout_method_elements,scout_spices_elements}, owner_type, owner_id, achievement_pathway_oas_data{…}, achievement_pathway_logbook_data{…} }',
+    access:'', notes:'Attendance members carry <code>{ id, first_name, last_name, member_number, patrol_name }</code>.' },
+  { level:'event', host:'events', method:'GET', path:'/proposals/{proposalId}', title:'One proposal', status:'live', returns:'Same fields as the unit list.', fields:'Proposal', access:'', notes:'' },
+
+  /* ---------- REFERENCE ---------- */
+  { level:'reference', host:'templates', method:'GET', path:'/oas/{stream}/tree.json', title:'OAS stream tree', status:'live', returns:'Branches and stages, each with a link to its stage template.', fields:'{ title, stream_id, description, achievement_type, tree{ branch_id, title, stage, template_link, children[] } }', access:'Streams: alpine, aquatics, boating, bushcraft, bushwalking, camping, cycling, paddling, vertical.', notes:'The <code>template_link</code> looks like <code>oas/alpine/cross-country-skiing/4/latest.json</code>.' },
+  { level:'reference', host:'templates', method:'GET', path:'/{template_link}  e.g. /oas/alpine/1/latest.json', title:'An OAS stage\'s requirements', status:'live', returns:'The statements for that stage.', fields:'{ template, meta{stage,stream}, version, document[ { title, input_groups[ { title, inputs[] } ] } ] }', access:'', notes:'Match the answer keys on a record to these inputs.' },
+  { level:'reference', host:'templates', method:'GET', path:'/{type}/{section}/{doc}/latest.json', title:'Section templates', status:'live', returns:'Titles, descriptions and form layouts for each pathway and section.', fields:'{ template, version, document }',
+    access:'Sections: joey, cub, scout, venturer, rover. Docs that exist: milestone overview and review/1..3; SIA overview, plan, review; adventurous-journey overview, plan, review; personal-reflection overview, plan, review, do; intro-scouting, intro-section and oas overview.', notes:'A missing doc returns 404 with a small non-JSON body.' },
+  { level:'reference', host:'templates', method:'GET', path:'/additional-awards/specifications.json  ·  /historic-awards.json', title:'Additional award names', status:'live', returns:'Bare array of 31 awards (and one historic).', fields:'[{ id, title, description, sections[] }]', access:'Ids such as <code>camper_award_10</code>.', notes:'Match <code>achievement_meta.additional_award_id</code> to <code>id</code> to get the name.' },
+  { level:'reference', host:'templates', method:'GET', path:'/resources/…pdf', title:'Guide PDFs', status:'live', returns:'SIA prompters, OAS details, Adventurous Journey guides.', fields:'PDF, 0.4 to 1.6 MB', access:'', notes:'Linked from template info boxes.' },
+];
+
+const FINDER = [
+  { q:'Who is in a unit (the roster)?', level:'unit', call:'GET members /units/{id}/members', fields:'id, first_name, last_name, member_number, date_of_birth, unit.duty, patrol', watch:'Complete: <code>total</code> matches. Do not use the group member list for this.' },
+  { q:'Who are the youth and who are the adult leaders?', level:'unit', call:'GET members /units/{id}/members', fields:'unit.duty', watch:'Adult leader = <code>adult_leader</code> only. Unit Leader, Patrol Leader and Assistant Patrol Leader are <strong>youth</strong>.' },
+  { q:'Which patrol is someone in, and are they PL or APL?', level:'unit', call:'GET members /units/{id}/members', fields:'patrol.name, patrol.duty', watch:'Unit leaders have <code>patrol: null</code>. Adult leaders can sit in a patrol with duty <code>member</code>.' },
+  { q:'How old is each member?', level:'unit', call:'GET members /units/{id}/members', fields:'date_of_birth (yyyy-mm-dd)', watch:'Compute age yourself.' },
+  { q:'What is each member\'s overall progress at a glance?', level:'unit', call:'GET members /units/{id}/metrics', fields:'achievement_metrics.*', watch:'Summaries and percentages only. One call per unit, 13 to 65 KB.' },
+  { q:'When was each Milestone stage awarded?', level:'unit', call:'GET achievements /units/{id}/achievements?type=milestone&section=…', fields:'achievement_meta.stage, status = awarded, date_awarded', watch:'Use <code>date_awarded</code> first. Skipped stages are <code>not_required</code>. Records span all the member\'s sections.' },
+  { q:'How many participate, assist and lead credits does a member have?', level:'unit', call:'GET achievements /units/{id}/achievements?type=milestone', fields:'event_count.participant|assistant|leader.community|outdoors|creative|personal_growth; imported.event_count', watch:'Imported milestones can carry credits under <code>imported.event_count</code>.' },
+  { q:'Which events gave a member their credits?', level:'member', call:'GET achievements /members/{id}/achievements?type=milestone', fields:'event_log[] { event_id, event_name, credit_type, challenge_area, event_start_datetime }', watch:'Absent on 16 of 200 records.' },
+  { q:'Which OAS stages has each member done?', level:'unit', call:'GET achievements /units/{id}/achievements?type=outdoor_adventure_skill', fields:'achievement_meta { stream, branch, stage }, status, date_awarded, answers', watch:'Filter with <code>stream</code>, <code>branch</code>, <code>stage</code>. Large: 1.9 MB unfiltered.' },
+  { q:'What is a member\'s highest OAS stage per stream?', level:'unit', call:'GET members /units/{id}/metrics', fields:'outdoor_adventure_skill_metrics.highest_progressions', watch:'Summary only. Use the OAS call for dates.' },
+  { q:'Which requirements of an OAS stage are ticked and who verified them?', level:'member', call:'GET achievements /members/{id}/achievements?type=outdoor_adventure_skill', fields:'answers: <code>&lt;slug&gt;_&lt;hash&gt;</code> (bool) plus <code>…_verifierName</code>, <code>…_verifierContact</code>, <code>…_verifierType</code>, <code>…_verifiedDate</code>', watch:'Match keys to the stage template inputs. <code>answers</code> holds booleans, strings and arrays.' },
+  { q:'What are the names of the stages and requirements?', level:'reference', call:'GET templates /oas/{stream}/tree.json then each template_link', fields:'tree.children[].title, document[].input_groups[].inputs[].label', watch:'' },
+  { q:'Special Interest Area projects and which area?', level:'unit', call:'GET achievements /units/{id}/achievements?type=special_interest_area', fields:'achievement_meta.sia_area, plan_type, review_type, answers.project_name, status', watch:'<code>achievement_meta</code> is missing on 34 of 126. Statuses include draft_approval, approved, pending_review.' },
+  { q:'Who has completed Introduction to Scouting / Section?', level:'unit', call:'GET achievements /units/{id}/achievements?type=intro_scouting | intro_section', fields:'status = awarded, date_awarded or imported.date_awarded', watch:'Two shapes: recorded in Terrain (answers, latest_submission) and imported (only <code>imported</code>).' },
+  { q:'Adventurous Journey, Personal Reflection, Course Reflection?', level:'unit', call:'GET achievements /units/{id}/achievements?type=adventurous_journey | personal_reflection | course_reflection', fields:'status, date_awarded, answers, uploads', watch:'Joey and Cub units had none. Heavy answers: AJ 341 KB for 12 records.' },
+  { q:'Peak award progress for one member', level:'member', call:'GET achievements /members/{id}/peak-award-progress?section=…', fields:'peak_award_progress, essentials_progress, oas.*, sia.*, milestones.*', watch:'For the whole unit, use <code>/units/{id}/metrics</code> instead.' },
+  { q:'Peak awards awarded', level:'unit', call:'GET achievements /units/{id}/achievements?type=peak_award', fields:'status, date_awarded', watch:'Very few records (2 and 1 in the Scout and Venturer units).' },
+  { q:'Additional awards (Camper, Walkabout…) and their names', level:'unit', call:'GET achievements /units/{id}/achievements?type=additional_award  +  GET templates /additional-awards/specifications.json', fields:'achievement_meta.additional_award_id → specifications[].title; imported.date_awarded; expiry_date', watch:'All records seen were imported. Match ids to names yourself.' },
+  { q:'What is waiting for approval?', level:'unit', call:'GET achievements /units/{id}/submissions?status=pending  (or agenda)', fields:'achievement, member, submission.type (award | review | approval), submission.date', watch:'Only units where you have the approval role; others 403.' },
+  { q:'Who approved or awarded what, and when (history)?', level:'unit', call:'GET achievements /units/{id}/submissions?status=finalised', fields:'submission.actioned_by[] { member_*, outcome, time, date_awarded, comment }, submission.outcome', watch:'976 entries since 2020. Same 403 rule.' },
+  { q:'Camping nights and distance hiked', level:'personal', call:'GET achievements /members/{id}/logbook-metrics', fields:'results[] total_nights_camped, total_distance_hiked', watch:'Another member\'s logbook needs an assumed profile.' },
+  { q:'A member\'s logbook entries and details', level:'member', call:'GET achievements /members/{id}/logbook then /logbook/{logbookId}', fields:'title, start/end_date, distance_*, categories, details.*', watch:'403 for others unless you assume that member first (30 minutes, revoke after).' },
+  { q:'What events happened or are planned?', level:'event', call:'GET events /members/{id}/events?start_datetime=&end_datetime=', fields:'title, start/end_datetime, status (planned | concluded), challenge_area, invitee_name', watch:'<code>end_datetime</code> required. Add the CSV params for a ready-made export.' },
+  { q:'Who attended an event, and who led it?', level:'event', call:'GET events /events/{eventId}', fields:'attendance.participant_members, leader_members, assistant_members, attendee_members', watch:'One call per event.' },
+  { q:'Unit attendance counts at a glance', level:'unit', call:'GET members /units/{id}/metrics', fields:'event_metrics.recent_event_count, recent_unit_event_count', watch:'Recent counts only, not a full history.' },
+  { q:'Activity proposals from youth', level:'unit', call:'GET events /units/{id}/proposals', fields:'title, proposing_member, challenge_area, created_at', watch:'' },
+  { q:'Which units and patrols exist in the group?', level:'group', call:'GET members /groups/{id}/units  and  /groups/{id}/patrols', fields:'id, name, section, unit_id', watch:'Only your own group.' },
+  { q:'Everyone in the group in one list', level:'unit', call:'Union of GET members /units/{id}/members for every unit', fields:'id', watch:'Do not use <code>/groups/{id}/members</code>: 140 of 433 and 3 unit members missing. Members in more than one unit appear more than once (115 distinct in 130 rows).' },
+  { q:'Which roles do I have?', level:'personal', call:'GET members /profiles', fields:'profiles[].group.roles, unit.roles, member.roles', watch:'Leader if group-leader, support-leader-group-*, or unit-council.' },
+];
+
+const FIELDS = [
+  ['id, member_id, section, type, status, status_updated', 'Every record', 'Identity, the unit section it was for, the achievement type, status, and when the status last changed.'],
+  ['date_awarded', 'Awarded records recorded in Terrain', '<strong>Terrain\'s award date</strong> (yyyy-mm-dd). The date to use. Seen on milestone 27 of 55 awarded, SIA 67 of 97, intro_scouting 13 of 43, intro_section 21 of 62, OAS 14 of 24.'],
+  ['imported { date_awarded, awarded_by{id,name}, event_count }', 'Imported records', 'Award recorded by a leader from before Terrain, or entered by hand. Its date is the fallback if there is no <code>date_awarded</code>.'],
+  ['template, version', 'Recorded in Terrain', 'Which form this was filled in on. Absent on imported records.'],
+  ['answers', 'Recorded in Terrain', 'The form answers. Not just strings: booleans, arrays, objects. OAS keys are <code>&lt;slug&gt;_&lt;hash&gt;</code> plus verifier suffixes. A skipped milestone has <code>skipped_on, skipped_by, skip_notes, previous_status</code>.'],
+  ['latest_submission { submission_id, unit_id, submission_time }', 'Submitted records', 'The submission that put it into approval. Joins to <code>submissions</code>.'],
+  ['last_updated', 'Most', 'When the record was last edited.'],
+  ['uploads[] { id, filename, bucket, key, url, uploaded_on }', 'With attachments', 'Files. The <code>url</code> field is not needed for reports.'],
+  ['can_archive', 'Few (SIA 9, AJ 1)', 'Whether a leader can archive it.'],
+  ['expiry_date', 'Some additional awards (6 of 85)', 'When an award lapses.'],
+  ['achievement_meta', 'Varies by type', 'See the types table.'],
+  ['milestone_requirement_status, event_count, event_log[]', 'Milestone only', 'Credit counts per role and challenge area, and the events behind them.'],
+];
+const TYPES = [
+  ['milestone', 'Milestone stages 1 to 3', '{ stage }', 'Scout unit: 200 records across 47 members (cub 92, scout 86, joey 16, venturer 6)'],
+  ['intro_scouting', 'Introduction to Scouting', 'none', '43 records (18 imported)'],
+  ['intro_section', 'Introduction to Section', 'none', '64 records (16 imported)'],
+  ['outdoor_adventure_skill', 'OAS stages', '{ stream, branch, stage }', 'Cub unit: 396 records in 8 streams, 18 branches'],
+  ['special_interest_area', 'SIA plan and review', '{ sia_area, plan_type, review_type } (92 of 126)', '126 records across 23 members'],
+  ['adventurous_journey', 'Adventurous Journey', 'none', 'Scout 12, Venturer 4, Joey and Cub 0'],
+  ['personal_reflection', 'Personal Reflection', 'none', 'Scout 11, Venturer 5'],
+  ['course_reflection', 'Course Reflection', 'none', 'Scout 27, Venturer 12 (4 imported)'],
+  ['peak_award', 'Peak award', 'none', 'Scout 2, Venturer 1'],
+  ['additional_award', 'Additional awards', '{ additional_award_id }', 'Scout 85, all imported'],
+];
+const RULES = [
+  { h:'Youth roles are youth', p:'Unit Leader (UL), Patrol Leader (PL) and Assistant Patrol Leader (APL) are all <strong>youth</strong>. Only <code>unit.duty = adult_leader</code> is an adult. Their badges, attendance, hours and progress count with the youth.', l:['UL = unit duty <code>unit_leader</code>', 'PL = patrol duty <code>patrol_leader</code>', 'APL = patrol duty <code>assistant_patrol_leader</code>', 'Cub patrols call these Sixer and Seconder, ranked the same'] },
+  { h:'Permissions: what a 403 means', p:'A 403 means "no permission for that unit or person", not a failure. Treat it as empty.', l:['<code>units/{id}/submissions</code>: 200 only for a unit you can approve', '<code>/members/{id}</code>: 403 for people outside your group', 'Logbooks of others: 403 until you assume that profile', '<code>support-leader-groups</code>: 403 unless you are a support leader'] },
+  { h:'Assume a profile only for logbooks', p:'Every achievement read works for a leader without assuming. Only another member\'s logbook needs it.', l:['revoke, then assume, then re-read profiles', 'Lasts 30 minutes', 'Adds a fifth profile with <code>datetime_expires</code>', 'Always revoke afterwards'] },
+  { h:'Paging does not exist', p:'The achievements host ignores <code>limit</code>, <code>offset</code> and <code>page</code>. The members host rejects them. Unit calls return everything.', l:['<code>/groups/{id}/members</code> returns 140 of 433 and cannot be paged', 'Unit members: total matches in all four units', 'Plan for several MB per unit call'] },
+  { h:'Imported versus recorded records', p:'One <code>type</code> returns two shapes. Imported records have only the base fields plus <code>imported</code>. Recorded ones have template, answers and submission data.', l:['Treat every field except the six base fields as optional', 'Award date: <code>date_awarded</code>, else <code>imported.date_awarded</code>, else <code>status_updated</code>'] },
+  { h:'Stream is not branch', p:'For OAS the stream (for example paddling) can differ from the branch (canoeing, kayaking, sea-kayaking). Use both.', l:['Filter unit calls with <code>stream</code> and <code>branch</code>', 'Stages are numbers 1 to 5'] },
+  { h:'Milestones span sections', p:'A scout\'s milestone records include the earlier sections. Filter with <code>section=</code> or check <code>section</code> on each record.', l:['Stage filter <code>stage=2</code> works', '<code>status</code> and <code>member_id</code> filters are ignored'] },
+  { h:'Requests and CORS', p:'Any origin can call Terrain from the browser (CORS allows <code>*</code>). Only some request headers pass.', l:['Allowed: <code>authorization</code>, <code>content-type</code> (templates: <code>authorization</code>, <code>accept</code>)', 'Do not add other custom headers', 'Send the id token with no "Bearer"', 'Cognito calls may also send <code>x-amz-target</code> and <code>x-amz-user-agent</code>'] },
+  { h:'Errors and shapes to expect', p:'Bad parameters give readable 400s. Missing routes give opaque failures in the browser.', l:['Bad <code>type</code>: 400 <code>{ errors: { type: […] } }</code>', 'Missing <code>end_datetime</code>: 400 <code>{ errors: ["end_datetime required"] }</code>', 'Some responses are bare arrays: <code>/members/{id}/groups</code>, <code>/units/{id}/metrics</code>, additional-award specs', 'A missing template: 404, non-JSON body'] },
+  { h:'Dates and sizes', p:'Dates are mostly <code>yyyy-mm-dd</code>; timestamps are ISO with offsets. Responses are big.', l:['<code>status_updated</code>: <code>2026-11-12T09:24:06.001357+00:00</code>', 'Finalised submissions: 906 KB. OAS unfiltered: 1.9 MB', 'Event CSV uses <code>dd/mm/yyyy</code> and 12-hour times'] },
+];
+const WRITES = [
+  ['PATCH events /events/{id} (update, conclude)', 'event body', '204'],
+  ['POST events /units|groups|patrols/{id}/events, /events (create)', 'event body', ''],
+  ['DELETE events /events/{id}, /proposals/{id}', 'none', ''],
+  ['POST events /units/{id}/proposals', 'proposal', '201'],
+  ['PUT events /members/{id}/calendars', 'calendars object', '200'],
+  ['POST events /members/{id}/calendar-subscription', '{}', ''],
+  ['PUT achievements /units/{u}/achievements/manage-oas-stage', '{ items }', '200'],
+  ['PUT achievements /units/{u}/achievements/milestone-import-add-credits', '{ items }', '200'],
+  ['PUT achievements /units/{u}/achievements/milestone-import-award-stage', '{ section, stage, member_id, date_awarded }', '200'],
+  ['PUT achievements /units/{u}/bulk-award-sia', '{ plan_template, plan_version, member_ids, answers, uploads }', '200'],
+  ['PUT achievements /units/{u}/members/{m}/import-achievements/introduction', '{ achievement_type, date_awarded, section, action }', '200'],
+  ['POST achievements /members/{id}/create-achievement', '{ section, stage }', '200'],
+  ['PUT achievements /members/{id}/skip-achievement/{aid}, /unskip-achievement/{aid}', '{ skipped_by, skip_notes }', '200'],
+  ['POST achievements /submissions/{id}/assessments', '{ outcome, comment }', '204'],
+  ['POST achievements /members/{id}/achievements/{aid}/archive?submission_id=', 'none', '204'],
+  ['POST/PUT/DELETE achievements /members/{id}/achievements, /logbook, /import-achievements', 'record', ''],
+  ['PUT/DELETE members /groups/{g}/units/{u}/members/{m}', '{ duty, unit_council }', '204'],
+  ['POST members /groups/{g}/units, /groups/{g}/patrols, /units/{u}/patrols', '{ name, unit_id }', ''],
+  ['PATCH members /users/{username}', '{ email }', ''],
+  ['POST members /support-leader-access', '{ member_id, group_id, access_level, action, request_note }', ''],
+  ['POST members /members/{id}/reset', 'none', '200, <strong>body contains a new password</strong>'],
+];
+
+/* ---------- rendering ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const state = { level: 'all', f: 'all', q: '' };
+
+function levelTag(id) { return `<span class="lv lv-${id}">${esc(LV[id] ? LV[id].label : id)}</span>`; }
+
+/* finder */
+function renderFinder() {
+  const q = $('#fsearch').value.trim().toLowerCase();
+  const rows = FINDER.filter(r => !q || (r.q + ' ' + r.call + ' ' + r.fields + ' ' + r.watch + ' ' + r.level).toLowerCase().includes(q));
+  $('#ftable tbody').innerHTML = rows.map(r => `<tr><td class="q">${r.q}</td><td data-label="Best level">${levelTag(r.level)}</td><td class="mono" data-label="Call">${r.call}</td><td class="mono" data-label="Fields to read">${r.fields}</td><td data-label="Watch out for">${r.watch || '<span style="color:var(--muted)">-</span>'}</td></tr>`).join('') || '<tr><td colspan="5">No matches.</td></tr>';
+  $('#fcount').textContent = `${rows.length} of ${FINDER.length}`;
+}
+
+/* calls */
+function callCard(c) {
+  const tag = c.status === 'live' ? '<span class="tag live">live</span>' : '<span class="tag code">code only</span>';
+  const dl = [['Returns', c.returns], ['Fields', `<span class="mono">${c.fields}</span>`], c.access ? ['Access', c.access] : null, c.notes ? ['Notes', c.notes] : null, ['Host', `<code>${esc(c.host)}</code>`]].filter(Boolean).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  return `<details class="call" style="--lc:var(--c-${c.level})" data-level="${c.level}" data-status="${c.status}" data-text="${esc((c.title + ' ' + c.path + ' ' + c.returns + ' ' + c.fields + ' ' + (c.notes || '')).toLowerCase())}">
+    <summary><span class="m ${c.method}">${c.method}</span><span class="ttl">${c.title}</span>${tag}
+      <span class="path"><b>${esc(c.host.split('.')[0])}</b>${esc(c.path)}</span><span class="ret">${c.returns}</span></summary>
+    <div class="body"><dl>${dl}</dl></div></details>`;
+}
+function renderCalls() {
+  const out = [];
+  let shown = 0;
+  for (const L of LEVELS) {
+    if (state.level !== 'all' && state.level !== L.id) continue;
+    const items = CALLS.filter(c => c.level === L.id && (state.f === 'all' || c.status === state.f) && (!state.q || (c.title + ' ' + c.path + ' ' + c.returns + ' ' + c.fields + ' ' + (c.notes || '') + ' ' + c.host).toLowerCase().includes(state.q)));
+    if (!items.length) continue;
+    shown += items.length;
+    out.push(`<div class="group-head" id="lv-${L.id}">${levelTag(L.id)}<p>${L.blurb}</p></div><div class="calls">${items.map(callCard).join('')}</div>`);
+  }
+  $('#callList').innerHTML = out.join('') || '<p class="lede">No calls match.</p>';
+  $('#ccount').textContent = `${shown} of ${CALLS.length} calls`;
+  document.querySelectorAll('#levelchips .chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.level === state.level)));
+  document.querySelectorAll('#cctl .chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === state.f)));
+}
+function setLevel(id, scroll) { state.level = id; renderCalls(); if (scroll) { openSection('calls'); document.getElementById('calls').scrollIntoView(); } }
+
+$('#levelchips').innerHTML = `<button class="chip" data-level="all" aria-pressed="true">All levels</button>` + LEVELS.map(l => `<button class="chip" data-level="${l.id}" aria-pressed="false">${l.label}</button>`).join('');
+$('#levelchips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) setLevel(b.dataset.level); });
+$('#cctl').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { state.f = b.dataset.f; renderCalls(); } });
+$('#csearch').addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); renderCalls(); });
+$('#fsearch').addEventListener('input', renderFinder);
+document.querySelectorAll('.pick[data-level]').forEach(b => b.addEventListener('click', () => setLevel(b.dataset.level, true)));
+
+/* tables */
+$('#fieldRows').innerHTML = FIELDS.map(r => `<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+$('#typeRows').innerHTML = TYPES.map(r => `<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td class="mono">${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+$('#ruleCards').innerHTML = RULES.map(r => `<div class="card"><h3>${r.h}</h3><p>${r.p}</p><ul>${r.l.map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('');
+$('#writeRows').innerHTML = WRITES.map(r => `<tr><td class="mono">${esc(r[0])}</td><td class="mono">${esc(r[1])}</td><td>${r[2]}</td></tr>`).join('');
+
+renderFinder(); renderCalls();
+
+/* collapsible sections */
+const SECS = () => [...document.querySelectorAll('details.sec')];
+function openSection(id) { const d = document.querySelector('#' + CSS.escape(id) + ' details.sec'); if (d) d.open = true; }
+document.querySelectorAll('nav.bar a[href^="#"]').forEach(a => a.addEventListener('click', () => openSection(a.getAttribute('href').slice(1))));
+$('#expandAll').addEventListener('click', () => SECS().forEach(d => d.open = true));
+$('#collapseAll').addEventListener('click', () => SECS().forEach(d => d.open = false));
+window.addEventListener('hashchange', () => openSection(location.hash.slice(1)));
+if (location.hash) openSection(location.hash.slice(1));
+window.addEventListener('beforeprint', () => SECS().forEach(d => d.open = true));
+</script>
+</body>
+</html>
