@@ -256,6 +256,7 @@
   <div class="legend" style="margin:0 0 6px">
     <span><span class="tag live">tested and reverted</span> called by hand on one adult record, then put back</span>
     <span><span class="tag live">observed live</span> recorded from a leader's own session</span>
+    <span><span class="tag code">tested, not fully reverted</span> worked, but left a side effect behind</span>
     <span><span class="tag code">code only</span> body and success code taken from the web client's code; the response was not seen</span>
   </div>
   <div class="controls" id="wctl">
@@ -485,7 +486,7 @@ const WAREAS = [
   { id:'events',    label:'Events and calendars',  blurb:'Programming: events, proposals and calendar settings.' },
   { id:'account',   label:'Account and access',    blurb:'Assuming a profile, email, access requests and password resets.' },
 ];
-const WSTATUS = { tested:'tested and reverted', observed:'observed live', code:'code only' };
+const WSTATUS = { tested:'tested and reverted', observed:'observed live', partial:'tested, not fully reverted', code:'code only' };
 const WRISK = { low:'easy to undo', high:'hard to undo', sensitive:'sensitive' };
 
 // status: tested = called by hand and put back; observed = recorded from a leader's own session; code = read from the web client's code only (response unseen)
@@ -518,7 +519,7 @@ const WRITE_CALLS = [
     reads:'<code>GET /groups/{groupId}/units</code>', who:'Group leaders (the client puts the group id in the path).' },
   { area:'units', m:'PUT', host:'members', path:'/groups/{groupId}/units/{unitId}', title:'Rename a unit', status:'code', risk:'low',
     why:'"Rename" on the Units tab.', body:[['name','string, the new name']],
-    resp:'<strong>200</strong> expected; body not seen.', effects:'Only the name changes.',
+    resp:'<strong>200</strong> expected; body not seen.', effects:'<strong>Not tested:</strong> everyone in the unit would see the new name. Only the name changes.',
     reads:'<code>GET /groups/{groupId}/units</code>', who:'Group leaders (the client puts the group id in the path).' },
   { area:'units', m:'DELETE', host:'members', path:'/groups/{groupId}/units/{unitId}', title:'Delete a unit', status:'code', risk:'high',
     why:'"Delete" on the Units tab (the client asks for confirmation first).', body:null,
@@ -551,20 +552,23 @@ const WRITE_CALLS = [
     reads:'<code>GET /units/{unitId}/members</code>', who:'Leaders who can edit the group\'s members.' },
 
   /* ---------------- Drafts and submitting ---------------- */
-  { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/achievements', title:'Start a draft achievement', status:'code', risk:'low',
+  { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/achievements', title:'Start a draft achievement', status:'tested', risk:'low',
     why:'A member (or a leader assisting them) starts filling in an OAS stage, special interest area, reflection or similar.',
-    body:[['achievement_type','one of the ten types, for example <code>outdoor_adventure_skill</code>'],['template, version','the template the form was built from'],['section','the member\'s section'],['answers','object of answers, see "Achievement fields"'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>']],
-    resp:'<strong>200</strong> with the new record; the client reads its <code>id</code>.',
-    effects:'Creates a draft (drafts in the data have statuses such as <code>draft_review</code>). Nothing is sent for approval yet.',
+    body:[['achievement_type','one of the ten types, for example <code>personal_reflection</code>'],['template','the template path from the templates host, for example <code>personal-reflection/scout/plan</code>'],['version','number, from the same template document (1 here)'],['section','the member\'s section, for example <code>scout</code>'],['answers','object; <code>{}</code> was accepted'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>; <code>[]</code> was sent']],
+    resp:'<strong>200</strong> with the new record: <code>{ id, member_id, template, version, section, type, status, status_updated, last_updated }</code>, with <code>status: "draft_review"</code>.',
+    effects:'Creates a draft that shows in the member\'s achievements list. Nothing is submitted for approval. Tested on a personal reflection draft on a leader\'s own record and then deleted; the achievements list returned to the same records.',
     reads:'<code>GET /members/{memberId}/achievements?type=…</code>', who:'The member, or a leader assuming their profile.' },
-  { area:'drafts', m:'PUT', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Save a draft achievement', status:'code', risk:'low',
+  { area:'drafts', m:'PUT', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Save a draft achievement', status:'tested', risk:'low',
     why:'Saving progress on a draft, or sending it back to draft.',
-    body:[['achievement_type, template, version, section','as when creating it'],['answers','the full answers object'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>'],['reset_to_draft','boolean'] ],
-    resp:'<strong>200</strong> expected; body not seen.', effects:'Replaces the draft\'s answers and uploads.',
-    reads:'<code>GET /members/{memberId}/achievements/{achievementId}</code>', who:'The member, or a leader assuming their profile.' },
-  { area:'drafts', m:'DELETE', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Delete a draft achievement', status:'code', risk:'high',
+    body:[['achievement_type','required'],['version','required'],['section','required'],['answers','required; the full answers object'],['template','sent by the client; was not listed as required'],['uploads','array of <code>{ bucket, filename, key, uploaded_on }</code>'],['reset_to_draft','boolean, sent by the client']],
+    resp:'<strong>200</strong> with the record (same shape as when it was created). A body missing required fields returns <strong>400</strong> <code>{ "errors": { "achievement_type": ["required field"], "answers": ["required field"], "section": ["required field"], "version": ["required field"] } }</code> and changes nothing.',
+    effects:'Replaces the draft\'s answers and uploads. The record stayed <code>draft_review</code>.',
+    reads:'<code>GET /members/{memberId}/achievements/{achievementId}?type=…</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'drafts', m:'DELETE', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}', title:'Delete a draft achievement', status:'tested', risk:'high',
     why:'Deleting an unsubmitted submission from the member\'s own list. The client sends an empty JSON body <code>{}</code>.',
-    body:[['(empty object)','<code>{}</code>']], resp:'<strong>204</strong> expected.', effects:'Removes the draft. The client only offers it for the signed-in user\'s own submissions.',
+    body:[['(empty object)','<code>{}</code>']],
+    resp:'<strong>204</strong>, empty body. Deleting the same id again returns <strong>404</strong> with an empty body.',
+    effects:'Removes the draft. Tested only on a test draft created seconds earlier. Using the same route on the empty stage 2 and 3 milestone placeholders left by a skip was not attempted, so it is not known whether the server allows it.',
     reads:'<code>GET /members/{memberId}/achievements?type=…</code>', who:'The member, or a leader assuming their profile.' },
   { area:'drafts', m:'POST', host:'achievements', path:'/members/{memberId}/achievements/{achievementId}/submit', title:'Submit an achievement for approval', status:'code', risk:'high',
     why:'The Submit button on a finished draft. When a leader has assumed the member\'s profile the client uses <code>/submit-on-behalf</code> instead.',
@@ -600,10 +604,11 @@ const WRITE_CALLS = [
   { area:'leader', m:'POST', host:'achievements', path:'/members/{memberId}/create-achievement', title:'Create a milestone record', status:'code', risk:'high',
     why:'Creating a milestone stage for a member who does not have one.', body:[['section','string'],['stage','number']],
     resp:'<strong>200</strong> expected.', effects:'Adds a milestone record for that stage.', reads:'<code>GET /members/{memberId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
-  { area:'leader', m:'PUT', host:'achievements', path:'/members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}', title:'Skip or un-skip a milestone', status:'code', risk:'low',
+  { area:'leader', m:'PUT', host:'achievements', path:'/members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}', title:'Skip or un-skip a milestone', status:'partial', risk:'high',
     why:'Marking a milestone stage as not required, and undoing it.',
     body:[['skip: skipped_by','the leader\'s full name'],['skip: skip_notes','string, may be empty'],['unskip','no body']],
-    resp:'<strong>200</strong> expected.', effects:'A skipped milestone has <code>status: not_required</code> and <code>answers: { skipped_on, skipped_by, skip_notes, previous_status }</code>. Un-skipping restores the previous status.',
+    resp:'<strong>200</strong>, empty body, for both.',
+    effects:'<strong>Not cleanly reversible.</strong> Skipping stage 1 set it to <code>not_required</code> with <code>answers: { previous_status, skip_notes, skipped_by, skipped_on }</code> and made Terrain <strong>create empty stage 2 and stage 3 milestone records</strong> (<code>in_progress</code>, no events) that did not exist before. Un-skipping put stage 1 back to <code>in_progress</code> and removed its skip answers, but the stage 2 and stage 3 records stayed, and stage 1\'s <code>status_updated</code> moved to the time of the change. Removing the placeholders was not attempted.',
     reads:'<code>GET /members/{memberId}/achievements?type=milestone</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
   { area:'leader', m:'PUT', host:'achievements', path:'/units/{unitId}/achievements/manage-oas-stage', title:'Set or revert an OAS stage award', status:'code', risk:'high',
     why:'Editing the award date of an OAS stage, or reverting it.',
@@ -626,17 +631,17 @@ const WRITE_CALLS = [
     reads:'<code>GET /members/{memberId}/achievements</code>', who:'Leaders; the client offers it on the unit\'s pages.' },
 
   /* ---------------- Logbook ---------------- */
-  { area:'logbook', m:'POST', host:'achievements', path:'/members/{memberId}/logbook', title:'Add a logbook entry', status:'code', risk:'low',
+  { area:'logbook', m:'POST', host:'achievements', path:'/members/{memberId}/logbook', title:'Add a logbook entry', status:'tested', risk:'low',
     why:'"Add new record" on My Logbook. The path uses the signed-in user\'s id, which is the assumed member while a profile is assumed.',
-    body:[['title','string'],['start_date, end_date','<code>yyyy-mm-dd</code>'],['distance_travelled, distance_walkabout','numbers'],['categories','array of strings'],['achievement_meta','<code>{ stream, branch }</code>, sent only when the activity area is an OAS stream'],['details','<code>{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }</code>. The client deletes empty <code>activity_grade</code>, <code>activity_time_length</code> and <code>who_lead</code> first.']],
-    resp:'Success not decoded; the client then returns to the logbook list.', effects:'Adds an entry and updates the logbook totals (nights camped, distance hiked).',
+    body:[['title','string, required'],['start_date, end_date','<code>yyyy-mm-dd</code>, both required'],['distance_travelled','number, required (<code>0</code> was accepted)'],['categories','array of strings, required (<code>[]</code> was accepted)'],['details','object, required (<code>{}</code> was accepted). Full shape: <code>{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }</code>; the client deletes empty <code>activity_grade</code>, <code>activity_time_length</code> and <code>who_lead</code> first.'],['distance_walkabout','number, optional (read back as a number)'],['achievement_meta','<code>{ stream, branch }</code>, sent by the client only when the activity area is an OAS stream']],
+    resp:'<strong>201</strong> with an <strong>empty body</strong>: the new entry\'s id is not returned, so re-read the list to find it (it appears as <code>{ id, title, start_date }</code>). Missing required fields return <strong>400</strong> <code>{ "errors": { "title": ["required field"], … } }</code> listing every missing field, and nothing is created.',
+    effects:'Adds an entry to the list. With zero distance and no categories the logbook totals did not change. Tested on a leader\'s own logbook, then deleted.',
     reads:'<code>GET /members/{memberId}/logbook</code>, <code>/logbook-metrics</code>', who:'The member, or a leader assuming their profile.' },
-  { area:'logbook', m:'PUT', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Edit a logbook entry', status:'code', risk:'low',
-    why:'"Edit" on an entry.', body:[['(the same record)','as when adding, but <strong>without</strong> the <code>id</code> field']],
-    resp:'Success not decoded.', effects:'Replaces the entry and recalculates the totals.', reads:'<code>GET /members/{memberId}/logbook/{logbookId}</code>', who:'The member, or a leader assuming their profile.' },
-  { area:'logbook', m:'DELETE', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Delete a logbook entry', status:'code', risk:'high',
-    why:'"Delete" on an entry.', body:null, resp:'Success not decoded.', effects:'Removes the entry and lowers the totals.', reads:'<code>GET /members/{memberId}/logbook</code>', who:'The member, or a leader assuming their profile.' },
-
+  { area:'logbook', m:'PUT', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Edit a logbook entry', status:'tested', risk:'low',
+    why:'"Edit" on an entry.', body:[['(the same record)','the same required fields as when adding. The client omits <code>id</code>, but including it was also accepted.']],
+    resp:'<strong>204</strong>, empty body.', effects:'Replaces the entry (the title change read back straight away).', reads:'<code>GET /members/{memberId}/logbook/{logbookId}</code>', who:'The member, or a leader assuming their profile.' },
+  { area:'logbook', m:'DELETE', host:'achievements', path:'/members/{memberId}/logbook/{logbookId}', title:'Delete a logbook entry', status:'tested', risk:'high',
+    why:'"Delete" on an entry.', body:null, resp:'<strong>204</strong>, empty body.', effects:'Removes the entry. Tested on a test entry; the list and the totals returned to what they were.', reads:'<code>GET /members/{memberId}/logbook</code>', who:'The member, or a leader assuming their profile.' },
   /* ---------------- Events and calendars ---------------- */
   { area:'events', m:'POST', host:'events', path:'/units/{unitId}/events  ·  /groups/{groupId}/events  ·  /patrols/{patrolId}/events  ·  /events', title:'Create an event', status:'code', risk:'high',
     why:'Planning an activity, or logging one that has already happened ("Event created and concluded"). The route depends on who the event is for.',
@@ -652,12 +657,15 @@ const WRITE_CALLS = [
   { area:'events', m:'POST', host:'events', path:'/units/{unitId}/proposals', title:'Propose an activity', status:'code', risk:'low',
     why:'A youth member\'s "Propose idea". The client shows "Proposal sent to Unit Council".',
     body:[['title, description, justification, leader','strings'],['challenge_area','string'],['uploads','array']],
-    resp:'<strong>201</strong>.', effects:'Adds a proposal to the unit\'s list for Unit Council to review.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Offered to unit members; the client sends it to the signed-in user\'s unit.' },
+    resp:'<strong>201</strong>.', effects:'<strong>Not tested:</strong> a proposal is shown to the unit\'s council, so a test would be seen by other people. Adds a proposal to the unit\'s list for Unit Council to review.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Offered to unit members; the client sends it to the signed-in user\'s unit.' },
   { area:'events', m:'DELETE', host:'events', path:'/proposals/{proposalId}', title:'Remove a proposal', status:'code', risk:'high',
-    why:'Removing a proposal once it is dealt with.', body:null, resp:'Success not decoded; the client shows "removed successfully".', effects:'Deletes the proposal.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Not decoded; the client offers it on a proposal\'s page.' },
-  { area:'events', m:'PUT', host:'events', path:'/members/{memberId}/calendars', title:'Choose which calendars you see', status:'code', risk:'low',
-    why:'The calendar list toggles on the Programming page.', body:[['(the calendars object)','<code>{ member_id, own_calendars[], other_calendars[] }</code> as read, with the <code>selected</code> flags changed']],
-    resp:'<strong>200</strong>.', effects:'Only changes what the signed-in user sees; it does not change events.', reads:'<code>GET /members/{memberId}/calendars</code>', who:'The signed-in member.' },
+    why:'Removing a proposal once it is dealt with.', body:null, resp:'Success not decoded; the client shows "removed successfully".', effects:'<strong>Not tested</strong> for the same reason. Deletes the proposal.', reads:'<code>GET /units/{unitId}/proposals</code>', who:'Not decoded; the client offers it on a proposal\'s page.' },
+  { area:'events', m:'PUT', host:'events', path:'/members/{memberId}/calendars', title:'Choose which calendars you see', status:'tested', risk:'low',
+    why:'The calendar list toggles on the Programming page.',
+    body:[['(the calendars object)','<code>{ member_id, own_calendars[], other_calendars[] }</code> exactly as read. The tested call sent the whole object back with one <code>selected</code> flag flipped.']],
+    resp:'<strong>204</strong>, empty body (the client\'s code expected 200).',
+    effects:'Only changes which calendars the signed-in user sees; it does not change events. Tested by flipping one entry and then putting the original object back: the read afterwards matched the original exactly.',
+    reads:'<code>GET /members/{memberId}/calendars</code>', who:'The signed-in member.' },
   { area:'events', m:'POST', host:'events', path:'/members/{memberId}/calendar-subscription', title:'Create iCal feed links', status:'code', risk:'sensitive',
     why:'"Subscribe" in the calendar dialog.', body:[['(empty object)','<code>{}</code>']], resp:'Not seen. A later <code>GET</code> returns the feed ids and URLs.',
     effects:'Creates private feed URLs. Anyone with a URL can read the calendar, so treat it as a secret.', reads:'<code>GET /members/{memberId}/calendar-subscription</code>', who:'The signed-in member.' },
@@ -739,10 +747,10 @@ const wstate = { area: 'all', f: 'all', q: '' };
 function writeCard(c) {
   const bodyHtml = c.body ? `<table class="ft"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${c.body.map(r => `<tr><td class="mono">${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>${c.bodyNote ? `<div style="margin-top:6px">${c.bodyNote}</div>` : ''}` : (c.bodyNote || 'No body.');
   const dl = [['Request body', bodyHtml], ['Response', c.resp], ['What it does', c.effects], ['Re-read with', c.reads], ['Who can use it', c.who], ['Host', `<code>${esc(c.host)}</code>`]].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-  const stTag = c.status === 'code' ? 'code' : 'live';
+  const stTag = (c.status === 'code' || c.status === 'partial') ? 'code' : 'live';
   const riskCls = { low: 'low', high: 'high', sensitive: 'sens' }[c.risk];
   const text = (c.title + ' ' + c.path + ' ' + c.why + ' ' + c.effects + ' ' + (c.body ? c.body.map(r => r.join(' ')).join(' ') : '')).toLowerCase();
-  return `<details class="call" style="--lc:${c.status === 'code' ? 'var(--c-personal)' : 'var(--c-reference)'}"><summary><span class="m ${c.m}">${c.m}</span><span class="ttl">${c.title}</span><span><span class="tag ${stTag}">${WSTATUS[c.status]}</span> <span class="tag ${riskCls}">${WRISK[c.risk]}</span></span><span class="path"><b>${esc(c.host)}</b>${esc(c.path)}</span><span class="ret">${c.why}</span></summary><div class="body"><dl>${dl}</dl></div></details>`.replace('<details class="call"', `<details class="call" data-text="${esc(text)}"`);
+  return `<details class="call" style="--lc:${(c.status === 'code' || c.status === 'partial') ? 'var(--c-personal)' : 'var(--c-reference)'}"><summary><span class="m ${c.m}">${c.m}</span><span class="ttl">${c.title}</span><span><span class="tag ${stTag}">${WSTATUS[c.status]}</span> <span class="tag ${riskCls}">${WRISK[c.risk]}</span></span><span class="path"><b>${esc(c.host)}</b>${esc(c.path)}</span><span class="ret">${c.why}</span></summary><div class="body"><dl>${dl}</dl></div></details>`.replace('<details class="call"', `<details class="call" data-text="${esc(text)}"`);
 }
 function renderWrites() {
   const out = []; let shown = 0;

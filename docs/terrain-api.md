@@ -513,7 +513,7 @@ Create, rename and delete units and patrols.
 - **Used for:** "Rename" on the Units tab.
 - **Request body:** `name`: string, the new name
 - **Response:** **200** expected; body not seen.
-- **What it does:** Only the name changes.
+- **What it does:** **Not tested:** everyone in the unit would see the new name. Only the name changes.
 - **Re-read with:** `GET /groups/{groupId}/units`
 - **Who can use it:** Group leaders (the client puts the group id in the path).
 
@@ -584,34 +584,34 @@ A member writing, saving and submitting their own achievement.
 
 #### Start a draft achievement
 
-`POST achievements /members/{memberId}/achievements` · code only · easy to undo
+`POST achievements /members/{memberId}/achievements` · tested and reverted · easy to undo
 
 - **Used for:** A member (or a leader assisting them) starts filling in an OAS stage, special interest area, reflection or similar.
-- **Request body:** `achievement_type`: one of the ten types, for example `outdoor_adventure_skill`; `template, version`: the template the form was built from; `section`: the member's section; `answers`: object of answers, see "Achievement fields"; `uploads`: array of `{ bucket, filename, key, uploaded_on }`
-- **Response:** **200** with the new record; the client reads its `id`.
-- **What it does:** Creates a draft (drafts in the data have statuses such as `draft_review`). Nothing is sent for approval yet.
+- **Request body:** `achievement_type`: one of the ten types, for example `personal_reflection`; `template`: the template path from the templates host, for example `personal-reflection/scout/plan`; `version`: number, from the same template document (1 here); `section`: the member's section, for example `scout`; `answers`: object; `{}` was accepted; `uploads`: array of `{ bucket, filename, key, uploaded_on }`; `[]` was sent
+- **Response:** **200** with the new record: `{ id, member_id, template, version, section, type, status, status_updated, last_updated }`, with `status: "draft_review"`.
+- **What it does:** Creates a draft that shows in the member's achievements list. Nothing is submitted for approval. Tested on a personal reflection draft on a leader's own record and then deleted; the achievements list returned to the same records.
 - **Re-read with:** `GET /members/{memberId}/achievements?type=…`
 - **Who can use it:** The member, or a leader assuming their profile.
 
 #### Save a draft achievement
 
-`PUT achievements /members/{memberId}/achievements/{achievementId}` · code only · easy to undo
+`PUT achievements /members/{memberId}/achievements/{achievementId}` · tested and reverted · easy to undo
 
 - **Used for:** Saving progress on a draft, or sending it back to draft.
-- **Request body:** `achievement_type, template, version, section`: as when creating it; `answers`: the full answers object; `uploads`: array of `{ bucket, filename, key, uploaded_on }`; `reset_to_draft`: boolean
-- **Response:** **200** expected; body not seen.
-- **What it does:** Replaces the draft's answers and uploads.
-- **Re-read with:** `GET /members/{memberId}/achievements/{achievementId}`
+- **Request body:** `achievement_type`: required; `version`: required; `section`: required; `answers`: required; the full answers object; `template`: sent by the client; was not listed as required; `uploads`: array of `{ bucket, filename, key, uploaded_on }`; `reset_to_draft`: boolean, sent by the client
+- **Response:** **200** with the record (same shape as when it was created). A body missing required fields returns **400** `{ "errors": { "achievement_type": ["required field"], "answers": ["required field"], "section": ["required field"], "version": ["required field"] } }` and changes nothing.
+- **What it does:** Replaces the draft's answers and uploads. The record stayed `draft_review`.
+- **Re-read with:** `GET /members/{memberId}/achievements/{achievementId}?type=…`
 - **Who can use it:** The member, or a leader assuming their profile.
 
 #### Delete a draft achievement
 
-`DELETE achievements /members/{memberId}/achievements/{achievementId}` · code only · hard to undo
+`DELETE achievements /members/{memberId}/achievements/{achievementId}` · tested and reverted · hard to undo
 
 - **Used for:** Deleting an unsubmitted submission from the member's own list. The client sends an empty JSON body `{}`.
 - **Request body:** `(empty object)`: `{}`
-- **Response:** **204** expected.
-- **What it does:** Removes the draft. The client only offers it for the signed-in user's own submissions.
+- **Response:** **204**, empty body. Deleting the same id again returns **404** with an empty body.
+- **What it does:** Removes the draft. Tested only on a test draft created seconds earlier. Using the same route on the empty stage 2 and 3 milestone placeholders left by a skip was not attempted, so it is not known whether the server allows it.
 - **Re-read with:** `GET /members/{memberId}/achievements?type=…`
 - **Who can use it:** The member, or a leader assuming their profile.
 
@@ -704,12 +704,12 @@ Awarding, importing, skipping and bulk edits made by a leader.
 
 #### Skip or un-skip a milestone
 
-`PUT achievements /members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}` · code only · easy to undo
+`PUT achievements /members/{memberId}/skip-achievement/{achievementId}  ·  /unskip-achievement/{achievementId}` · tested, not fully reverted · hard to undo
 
 - **Used for:** Marking a milestone stage as not required, and undoing it.
 - **Request body:** `skip: skipped_by`: the leader's full name; `skip: skip_notes`: string, may be empty; `unskip`: no body
-- **Response:** **200** expected.
-- **What it does:** A skipped milestone has `status: not_required` and `answers: { skipped_on, skipped_by, skip_notes, previous_status }`. Un-skipping restores the previous status.
+- **Response:** **200**, empty body, for both.
+- **What it does:** **Not cleanly reversible.** Skipping stage 1 set it to `not_required` with `answers: { previous_status, skip_notes, skipped_by, skipped_on }` and made Terrain **create empty stage 2 and stage 3 milestone records** (`in_progress`, no events) that did not exist before. Un-skipping put stage 1 back to `in_progress` and removed its skip answers, but the stage 2 and stage 3 records stayed, and stage 1's `status_updated` moved to the time of the change. Removing the placeholders was not attempted.
 - **Re-read with:** `GET /members/{memberId}/achievements?type=milestone`
 - **Who can use it:** Leaders; the client offers it on the unit's pages.
 
@@ -764,34 +764,34 @@ A member's own adventure log.
 
 #### Add a logbook entry
 
-`POST achievements /members/{memberId}/logbook` · code only · easy to undo
+`POST achievements /members/{memberId}/logbook` · tested and reverted · easy to undo
 
 - **Used for:** "Add new record" on My Logbook. The path uses the signed-in user's id, which is the assumed member while a profile is assumed.
-- **Request body:** `title`: string; `start_date, end_date`: `yyyy-mm-dd`; `distance_travelled, distance_walkabout`: numbers; `categories`: array of strings; `achievement_meta`: `{ stream, branch }`, sent only when the activity area is an OAS stream; `details`: `{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }`. The client deletes empty `activity_grade`, `activity_time_length` and `who_lead` first.
-- **Response:** Success not decoded; the client then returns to the logbook list.
-- **What it does:** Adds an entry and updates the logbook totals (nights camped, distance hiked).
+- **Request body:** `title`: string, required; `start_date, end_date`: `yyyy-mm-dd`, both required; `distance_travelled`: number, required (`0` was accepted); `categories`: array of strings, required (`[]` was accepted); `details`: object, required (`{}` was accepted). Full shape: `{ other_participants, activity_time_length, activity_grade, event_id, purpose, who_lead, verifier{name,contact}, weather, location, event_title, your_role }`; the client deletes empty `activity_grade`, `activity_time_length` and `who_lead` first.; `distance_walkabout`: number, optional (read back as a number); `achievement_meta`: `{ stream, branch }`, sent by the client only when the activity area is an OAS stream
+- **Response:** **201** with an **empty body**: the new entry's id is not returned, so re-read the list to find it (it appears as `{ id, title, start_date }`). Missing required fields return **400** `{ "errors": { "title": ["required field"], … } }` listing every missing field, and nothing is created.
+- **What it does:** Adds an entry to the list. With zero distance and no categories the logbook totals did not change. Tested on a leader's own logbook, then deleted.
 - **Re-read with:** `GET /members/{memberId}/logbook`, `/logbook-metrics`
 - **Who can use it:** The member, or a leader assuming their profile.
 
 #### Edit a logbook entry
 
-`PUT achievements /members/{memberId}/logbook/{logbookId}` · code only · easy to undo
+`PUT achievements /members/{memberId}/logbook/{logbookId}` · tested and reverted · easy to undo
 
 - **Used for:** "Edit" on an entry.
-- **Request body:** `(the same record)`: as when adding, but **without** the `id` field
-- **Response:** Success not decoded.
-- **What it does:** Replaces the entry and recalculates the totals.
+- **Request body:** `(the same record)`: the same required fields as when adding. The client omits `id`, but including it was also accepted.
+- **Response:** **204**, empty body.
+- **What it does:** Replaces the entry (the title change read back straight away).
 - **Re-read with:** `GET /members/{memberId}/logbook/{logbookId}`
 - **Who can use it:** The member, or a leader assuming their profile.
 
 #### Delete a logbook entry
 
-`DELETE achievements /members/{memberId}/logbook/{logbookId}` · code only · hard to undo
+`DELETE achievements /members/{memberId}/logbook/{logbookId}` · tested and reverted · hard to undo
 
 - **Used for:** "Delete" on an entry.
 - **Request body:** none
-- **Response:** Success not decoded.
-- **What it does:** Removes the entry and lowers the totals.
+- **Response:** **204**, empty body.
+- **What it does:** Removes the entry. Tested on a test entry; the list and the totals returned to what they were.
 - **Re-read with:** `GET /members/{memberId}/logbook`
 - **Who can use it:** The member, or a leader assuming their profile.
 
@@ -840,7 +840,7 @@ Programming: events, proposals and calendar settings.
 - **Used for:** A youth member's "Propose idea". The client shows "Proposal sent to Unit Council".
 - **Request body:** `title, description, justification, leader`: strings; `challenge_area`: string; `uploads`: array
 - **Response:** **201**.
-- **What it does:** Adds a proposal to the unit's list for Unit Council to review.
+- **What it does:** **Not tested:** a proposal is shown to the unit's council, so a test would be seen by other people. Adds a proposal to the unit's list for Unit Council to review.
 - **Re-read with:** `GET /units/{unitId}/proposals`
 - **Who can use it:** Offered to unit members; the client sends it to the signed-in user's unit.
 
@@ -851,18 +851,18 @@ Programming: events, proposals and calendar settings.
 - **Used for:** Removing a proposal once it is dealt with.
 - **Request body:** none
 - **Response:** Success not decoded; the client shows "removed successfully".
-- **What it does:** Deletes the proposal.
+- **What it does:** **Not tested** for the same reason. Deletes the proposal.
 - **Re-read with:** `GET /units/{unitId}/proposals`
 - **Who can use it:** Not decoded; the client offers it on a proposal's page.
 
 #### Choose which calendars you see
 
-`PUT events /members/{memberId}/calendars` · code only · easy to undo
+`PUT events /members/{memberId}/calendars` · tested and reverted · easy to undo
 
 - **Used for:** The calendar list toggles on the Programming page.
-- **Request body:** `(the calendars object)`: `{ member_id, own_calendars[], other_calendars[] }` as read, with the `selected` flags changed
-- **Response:** **200**.
-- **What it does:** Only changes what the signed-in user sees; it does not change events.
+- **Request body:** `(the calendars object)`: `{ member_id, own_calendars[], other_calendars[] }` exactly as read. The tested call sent the whole object back with one `selected` flag flipped.
+- **Response:** **204**, empty body (the client's code expected 200).
+- **What it does:** Only changes which calendars the signed-in user sees; it does not change events. Tested by flipping one entry and then putting the original object back: the read afterwards matched the original exactly.
 - **Re-read with:** `GET /members/{memberId}/calendars`
 - **Who can use it:** The signed-in member.
 
@@ -1195,3 +1195,24 @@ Observations:
 - **Unit-member writes always carry both fields.** Every `PUT` to a unit member sent `duty` and `unit_council` together, with `unit_council` set to the member's current value unless it was the council toggle itself.
 - **Quick double toggles are not merged.** Switching unit council on and straight off sent two separate `PUT`s about 130 ms apart.
 - **The patrol menu only offers a patrol duty to a member who is in a patrol.** A member with no patrol is offered only Scout, Adult Leader and Unit Leader.
+
+
+# More write calls tested on a leader's own record (2026-11-13)
+
+The write calls marked "easy to undo" were exercised one at a time on the signed-in leader's own member record (an adult), with a snapshot taken first and a read after each step. Calls whose effects other people would see (proposals, renaming a unit) were not tested. Results:
+
+| Call | Result | Put back? |
+|---|---|---|
+| `PUT /members/{id}/calendars` (flip one `selected`, send the whole object) | **204** empty body | Yes, the read matched the original |
+| `POST /members/{id}/achievements` (draft, `answers: {}`) | **200** with the new record, `status: draft_review` | Deleted below |
+| `PUT /members/{id}/achievements/{aid}` (save) | **200** with the record; missing fields return **400** listing `achievement_type`, `answers`, `section`, `version` | n/a |
+| `DELETE /members/{id}/achievements/{aid}` with `{}` | **204**; again: **404** | Yes, the achievements list held the same 6 records |
+| `POST /members/{id}/logbook` | **201**, **empty body** (no id); missing fields return **400** listing every one | Deleted below |
+| `PUT /members/{id}/logbook/{lid}` | **204**, empty body; `id` in the body is accepted | n/a |
+| `DELETE /members/{id}/logbook/{lid}` | **204** | Yes, 14 entries and the same totals |
+| `PUT /members/{id}/skip-achievement/{aid}` | **200**, empty body | See below |
+| `PUT /members/{id}/unskip-achievement/{aid}` | **200**, empty body | **Not fully** |
+
+**The skip test left a side effect.** Before the test the leader's record had one milestone (stage 1, `in_progress`). Skipping it set stage 1 to `not_required` with `answers: { previous_status, skip_notes, skipped_by, skipped_on }` and made Terrain create **empty stage 2 and stage 3 milestone records** (`in_progress`, no events). Un-skipping restored stage 1's status and removed its skip answers, but the two new records remained and stage 1's `status_updated` moved to the time of the change. An attempt to delete the two placeholders with the draft-delete route was not carried out, so it is not known whether the server allows that. The leader's record therefore still has milestone stages 2 and 3 that were not there before.
+
+Not tested: creating or removing proposals and renaming a unit (other people would see them), file uploads, and every other write.
