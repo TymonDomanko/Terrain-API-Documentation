@@ -666,3 +666,41 @@ This is a six-year activity log in one request.
 | Optional fields | Everything except `id, member_id, section, type, status, status_updated` can be absent on an achievement. |
 
 **Award date rule (decided 2026-11-13):** prefer `date_awarded`, then `imported.date_awarded`, then `status_updated`. `date_awarded` agrees with the `status_updated` day only about half the time on records that have both; the 25 to 50% of awarded records with neither have only `status_updated`.
+
+# Write calls tested: patrols, duties and unit leader (2026-11-13)
+
+Tested on the signed-in leader's **own member record only** (an adult leader, never a child's record), one change at a time. Each change was followed by a read to confirm it, and every change was reverted. After the last revert the member record was identical to the pre-test snapshot, and all four units' member lists matched it exactly (0 differing rows across 130 unit member rows; the group's 17 patrols unchanged). The tests used an empty patrol and a unit with no unit leader, so no other member's role could have been affected.
+
+## Results
+
+| Action | Call | Body | Result |
+|---|---|---|---|
+| Add to a patrol | `PUT members /groups/{g}/patrols/{p}/members/{m}` | `{ "duty": "member" }` | 204, empty body |
+| Make patrol leader | same | `{ "duty": "patrol_leader" }` | 204; the member's patrol duty read back as `patrol_leader` |
+| Make assistant patrol leader | same | `{ "duty": "assistant_patrol_leader" }` | 204; read back as `assistant_patrol_leader` |
+| Back to plain member | same | `{ "duty": "member" }` | 204 |
+| Unknown duty | same | `{ "duty": "bogus_duty" }` | **400** `{ "errors": { "duty": ["unallowed value bogus_duty"] } }`, nothing changed |
+| Move between patrols | `PUT` the new patrol, then `DELETE` the old one (how the web client does it) | duty body on the `PUT` | 204 and 204 |
+| Remove from a patrol | `DELETE members /groups/{g}/patrols/{p}/members/{m}` | none | 204 |
+| Remove when not a member | same `DELETE` | none | **400**, empty body |
+| Make unit leader | `PUT members /groups/{g}/units/{u}/members/{m}` | `{ "duty": "unit_leader", "unit_council": false }` | 204; read back as `unit_leader` on both `/members/{id}` and `/units/{id}/members` |
+| `patrol_leader` as a unit duty | same | `{ "duty": "patrol_leader", "unit_council": false }` | **400** `unallowed value patrol_leader`, nothing changed |
+| Restore unit duty | same | `{ "duty": "adult_leader", "unit_council": false }` | 204 |
+
+All 204 responses have an empty body. Reads show the change straight away.
+
+## What this shows
+
+- **Two separate levels.** Patrol leader and assistant patrol leader are the member's **patrol duty** (`patrol.duty`). Unit leader and adult leader are the **unit duty** (`unit.duty`). Setting one does not change the other.
+- **Allowed values.** Unit duty: `member`, `adult_leader`, `unit_leader`. Patrol duty: `member`, `patrol_leader`, `assistant_patrol_leader`. Each endpoint rejects the other level's values with a 400.
+- **Adding to a patrol is a `PUT`; a move is a `PUT` then a `DELETE`.** The server does not remove the old patrol for you. A member can be in **two patrols of the same unit at once** (a member record showed both until the `DELETE`).
+- **Patrol duty works for an adult leader.** The patrol `PUT` was accepted while the unit duty stayed `adult_leader`. The web client's duty menu offers patrol leader and assistant patrol leader only to a member who is in a patrol; a member with no patrol is offered only member, adult leader and unit leader.
+- **Unit membership** goes through the same URL shape with `units` in place of `patrols`, and includes `unit_council`.
+- **Group id in the path.** All of these calls put the group id in the URL (`/groups/{groupId}/…`).
+
+## Not tested, and why
+
+- **Creating a patrol.** The web client creates one with `POST /groups/{g}/patrols` or `POST /units/{u}/patrols` and a body of `{ name, unit_id }`. It has **no call to delete or rename a patrol** (none in any of its 267 bundles), so a created patrol could not be removed again. It was not attempted.
+- **Replacing an existing leader.** Whether the server rejects or demotes a second patrol leader, assistant patrol leader or unit leader in the same patrol or unit was not tested, because the only way to find out is to risk changing another member's role.
+- **A youth member's record.** Everything above used an adult leader's record. Results for a youth may differ (for example the web client also re-sends the unit membership when a patrol duty is set for a youth).
+- **Unit council.** `unit_council` was only sent unchanged. Changing it can change a person's permissions, so it was not exercised.

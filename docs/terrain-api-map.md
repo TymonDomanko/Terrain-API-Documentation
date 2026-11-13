@@ -35,10 +35,10 @@ Auth is Cognito (`cognito-idp.ap-southeast-2.amazonaws.com`): `InitiateAuth` (pa
 | GET | `/groups/{groupId}/patrols` | ✔ |
 | GET | `/groups/{groupId}/patrols/{patrolId}` | rejected |
 | GET | `/groups/{groupId}/members` | ✔ (140 of 433 in Terrain's own client too, see notes) |
-| POST | `/groups/{groupId}/units` | |
+| POST | `/groups/{groupId}/units` | not called |
 | PUT / DELETE | `/groups/{groupId}/units/{unitId}` | |
-| PUT / DELETE | `/groups/{groupId}/units/{unitId}/members/{memberId}` | |
-| PUT / DELETE | `/groups/{groupId}/{formation}/{id}/members/{memberId}` | |
+| PUT / DELETE | `/groups/{groupId}/units/{unitId}/members/{memberId}` (unit duty and council) | PUT ✔ tested and reverted (204) |
+| PUT / DELETE | `/groups/{groupId}/patrols/{patrolId}/members/{memberId}` (patrol membership and patrol duty; `{formation}` is `units` or `patrols`) | both ✔ tested and reverted (204) |
 | GET | `/units/{unitId}` | ✔ |
 | GET | `/units/{unitId}/members` | ✔ |
 | GET | `/units/{unitId}/patrols` | ✔ |
