@@ -77,6 +77,7 @@ Duty combinations seen (unit duty | patrol duty): `member | -`, `member | patrol
 Implications for clients:
 
 - PL and APL come only from `patrol.duty`. `unit.duty` is never `patrol_leader`, so a patrol leader is identified by the patrol duty alone.
+- A patrol can have more than one PL and more than one APL (reported by a Terrain user; the sampled data showed at most one of each per patrol), and a unit can have more than one unit leader (two were observed). Do not model any of them as a single field on the patrol or unit.
 - Unit leaders have `patrol: null` and adult leaders may sit in a patrol with duty `member`. Adult test must be `unit.duty === 'adult_leader'` (`isAdultLeader`), never "has a patrol".
 - The metadata key is hyphenated (`achievement-import`); an unhyphenated `achievementimport` does not match.
 
@@ -701,7 +702,7 @@ All 204 responses have an empty body. Reads show the change straight away.
 ## Not tested, and why
 
 - **Creating, renaming and deleting a patrol.** These were not attempted in this round. They were recorded later from a leader's own session; see the next section.
-- **Replacing an existing leader.** Whether the server rejects or demotes a second patrol leader, assistant patrol leader or unit leader in the same patrol or unit was not tested, because the only way to find out is to risk changing another member's role.
+- **Several leaders in one patrol or unit.** A Terrain user reports that a patrol can have **more than one patrol leader and more than one assistant patrol leader**, so the server is not expected to demote anyone when a second one is added. This was not tested: the group's data had at most one of each per patrol, and the only way to check is to risk changing another member's role. Several unit leaders in one unit were observed (the Scout unit had two).
 - **A youth member's record.** Everything above used an adult leader's record. Results for a youth may differ (for example the web client also re-sends the unit membership when a patrol duty is set for a youth).
 - **Unit council.** `unit_council` was only sent unchanged. Changing it can change a person's permissions, so it was not exercised.
 
