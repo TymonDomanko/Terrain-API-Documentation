@@ -830,12 +830,12 @@ Programming: events, proposals and calendar settings.
 
 #### Cancel an event
 
-`DELETE events /events/{eventId}` · code only · hard to undo
+`DELETE events /events/{eventId}` · partly verified (planned unit event, 2026-11-15) · hard to undo
 
 - **Used for:** "Cancel activity".
 - **Request body:** none
-- **Response:** Success not decoded; the client then returns to Programming.
-- **What it does:** Removes the event from calendars.
+- **Response:** **204**, empty body, on a planned unit event. A re-read of the unit's events no longer listed it (9 down to 8 in the date range), so it is removed from calendar reads, not just hidden by a status.
+- **What it does:** Removes the event from calendars. Not checked: whether anyone is notified, whether it can be restored, and concluded events.
 - **Re-read with:** `GET /members/{memberId}/events`
 - **Who can use it:** Not decoded; the client offers it on an event's page.
 
