@@ -398,7 +398,7 @@ Notes:
 | `GET /members/{id}/events?start_datetime=&end_datetime=` | 200 `{ results: { id, start_datetime, end_datetime, title, invitee_type, status, challenge_area, section, invitee_id, invitee_name, group_id }[168] }` for 2026. Status `concluded` 133, `planned` 35. |
 | `GET /members/{id}/organised-events` | 200 `{ results: { id, start_datetime, end_datetime, title, status, group_id }[] }` |
 | `GET /members/{id}/calendar-subscription` | 200 `{ member_id, feeds: { own_feed_id, others_feed_id, own_feed_url, others_feed_url } }`. **The feed URLs are secrets.** Shape only recorded. |
-| `GET /events/{eventId}` | 200, a large object: `id, status, title, location, organisers[], challenge_area, start/end_datetime, attendance: { leader_members, assistant_members, participant_members, attendee_members }, invitees[], review: { general_rating, general_tags, scout_method_elements, scout_spices_elements }, owner_type, owner_id, achievement_pathway_oas_data: { award_rule, verifier, groups[{ title, template, version, stage, stream, branch, statements[] }] }, achievement_pathway_logbook_data` |
+| `GET /events/{eventId}` | 200, a large object (**empty fields are omitted**: `description, justification, location, additional_notes, equipment_notes, schedule_items, uploads, review.general_tags, review.scout_spices_elements` appear only once set; `description` is free text that round-trips exactly; there is no duty patrol field; the logbook block has a `title` but no `verifier`): `id, status, title, location, organisers[], challenge_area, start/end_datetime, attendance: { leader_members, assistant_members, participant_members, attendee_members }, invitees[], review: { general_rating, general_tags, scout_method_elements, scout_spices_elements }, owner_type, owner_id, achievement_pathway_oas_data: { award_rule, verifier, groups[{ title, template, version, stage, stream, branch, statements[] }] }, achievement_pathway_logbook_data` |
 | `GET /events/{eventId}/invitees` | 200 `{ results: { id, first_name, last_name, member_number }[433] }`. It lists **all 433 group members**, not just those invited. Likely the whole-group member list that `groups/{id}/members` truncates to 140. |
 | `GET /units/{id}/proposals` | 200 `{ results: { id, title, description, justification, leader, challenge_area, created_at, proposing_member: { id, first_name, last_name }, uploads: [] }[] }` (1, 7, 10, 0) |
 | `GET /proposals/{id}` | 200, same fields (`proposing_member` also has `patrol_name`) |
@@ -802,22 +802,28 @@ Programming: events, proposals and calendar settings.
 
 #### Create an event
 
-`POST events /units/{unitId}/events  ·  /groups/{groupId}/events  ·  /patrols/{patrolId}/events  ·  /events` · code only · hard to undo
+`POST events /units/{unitId}/events  ·  /groups/{groupId}/events  ·  /patrols/{patrolId}/events  ·  /events` · partly verified (planned unit event, 2026-11-15) · hard to undo
 
 - **Used for:** Planning an activity, or logging one that has already happened ("Event created and concluded"). The route depends on who the event is for.
 - **Request body:** `title, description, justification, location`: strings; `organisers`: array of member ids; `challenge_area`: string; `start_datetime, end_datetime`: ISO date-times; `iana_timezone`: for example `Australia/Sydney`; `event_type`: `{ type, id }`: who it is for (group, unit, patrol or member); `attendance`: `{ leader_member_ids[], assistant_member_ids[], attendee_member_ids[], participant_member_ids[] }`; `schedule_items`: array; `achievement_pathway_oas_data, achievement_pathway_logbook_data`: objects, optional; `review`: `{ general_tags[], scout_method_elements[], scout_spices_elements[], general_rating?, growth_description?, scout_method_description? }`; `uploads, equipment_notes, additional_notes`: files and strings; `status`: `planned` or `concluded`; `invited_member_ids`: only for patrol project events
-- **Response:** **204** when creating a concluded event; the success code for a planned event was not decoded.
+- **Response:** **204**, empty body, for a concluded event and for a planned unit event. No event id comes back; to find the new event, re-read `GET /members/{id}/events` for that day and match the title.
+- **Exact body that worked (planned unit event):** keys `title, description, justification, organisers[], challenge_area, start_datetime, end_datetime, event_type { type: "unit", id }, attendance { leader_member_ids[], assistant_member_ids[], attendee_member_ids[], participant_member_ids[] }, schedule_items: [], achievement_pathway_oas_data { award_rule: "individual", verifier: { name, contact: "", type: "member" }, groups: [] }, achievement_pathway_logbook_data { distance_travelled: 0, distance_walkabout: 0, achievement_meta: { stream: "", branch: "" }, categories: [], details: { activity_time_length: "", activity_grade: "" }, title, verifier: { same shape } }, review { general_tags: [], scout_method_elements: [...], scout_spices_elements: [] }, uploads: [], equipment_notes: "", additional_notes: "", location, iana_timezone: "Australia/Sydney", status: "planned"`. Times are UTC with milliseconds, for example `2027-02-03T08:00:00.000+00:00`. The verifier is the signed-in leader's name.
+- **A body that failed:** one that left out the two `achievement_pathway_*` blocks and sent times without `.000`. Terrain's error responses carry **no CORS header**, so from a browser a rejected write shows as "Failed to fetch" / "No Access-Control-Allow-Origin" and hides the real status. If a write fails with a CORS error, suspect the body first.
+- **Values seen:** `review.scout_method_elements` keys: `promise_and_law, learn_by_doing, patrol_system, symbolic_framework, community_involvement, personal_progression, youth_leading_adult_supporting, nature_and_outdoors`. Terrain's own site ticks five by default when planning: `patrol_system, youth_leading_adult_supporting, personal_progression, learn_by_doing, community_involvement`. `challenge_area` keys: `outdoors, community, personal_growth, creative` (`not_applicable` appears in proposals but was not sent on an event).
+- **Not tested:** concluded events, group, patrol or member-level events, and whether Terrain rejects an event with no scout method elements or no organiser.
 - **What it does:** Adds the event to calendars. Concluded events record attendance, which appears to be where milestone credits (`event_log`) come from.
 - **Re-read with:** `GET /members/{memberId}/events?start_datetime=&end_datetime=`, `GET /events/{eventId}`
 - **Who can use it:** Not decoded; the client offers it from the Programming page.
 
 #### Update or conclude an event
 
-`PATCH events /events/{eventId}` · code only · hard to undo
+`PATCH events /events/{eventId}` · partly verified (planned unit events, 2026-11-15) · hard to undo
 
 - **Used for:** Editing an event, or marking it concluded after it has happened.
 - **Request body:** `(the same event body)`: with `status` set to `planned` or `concluded`
 - **Response:** **204**, empty body.
+- **Whole event, not a patch:** Terrain's own site resends the **whole** event (same shape as create, plus the logbook `title`). A client can do read-modify-write: `GET /events/{eventId}`, map `organisers` and the `attendance` objects back to member id arrays, change only what differs, and send the whole body. Done on three planned events: all 204, and a re-read showed location, organisers, challenge area, scout method elements and status unchanged, with only the description changed.
+- **Not round-trip safe:** events with non-empty `uploads` or `schedule_items`. Concluded events were not touched.
 - **What it does:** Concluding an event records attendance against the people listed; it appears to be what produces milestone credits.
 - **Re-read with:** `GET /events/{eventId}`
 - **Who can use it:** Not decoded; the client offers it on an event's page.
