@@ -869,6 +869,9 @@ Programming: events, proposals and calendar settings.
 - **Request body:** `(the calendars object)`: `{ member_id, own_calendars[], other_calendars[] }` exactly as read. The tested call sent the whole object back with one `selected` flag flipped.
 - **Response:** **204**, empty body (the client's code expected 200).
 - **What it does:** Only changes which calendars the signed-in user sees; it does not change events. Tested by flipping one entry and then putting the original object back: the read afterwards matched the original exactly.
+- **Affects event reads (reported by another client's live test, 2026-11-15; not part of the read sweep above):** `GET /members/{id}/events?start_datetime=&end_datetime=` returns only events from calendars whose `selected` is true. A calendar that is switched off contributes nothing, so to read its events: (a) `GET` the calendars object, (b) `PUT` it back with `selected` true for the wanted calendar and false for the rest, (c) read the events, (d) `PUT` the original object back. Step (d) restored the selection exactly.
+- **Account-wide state:** the selection belongs to the account, not the client. The `PUT` changes what the signed-in user sees everywhere, including Terrain's own web app. Two clients, or two overlapping reads in one client, can overwrite each other: the last `PUT` wins. Re-read the current selection just before each change so the "before" state you restore is the true one, and serialise calendar switching. What Terrain's web app does if a `PUT` arrives while it is open was not tested.
+- **Likely, not confirmed:** a unit's own calendar has the unit's id (`own_calendars[].id` equals the unit id). One client uses that first and falls back to matching the calendar title against the unit name; no capture shows the id match always holds.
 - **Re-read with:** `GET /members/{memberId}/calendars`
 - **Who can use it:** The signed-in member.
 
